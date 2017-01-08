@@ -6,6 +6,10 @@
 #include <tchar.h>
 #include <strsafe.h>
 
+// Globals (move these later):
+static const UINT MY_ICON_MESSAGE = WM_APP + 9;
+static NOTIFYICONDATA nid = { 0 };
+
 LRESULT CALLBACK
 WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -23,9 +27,27 @@ WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		EndPaint(hWnd, &ps);
 
 		break;
+
 	case WM_DESTROY:
+		Shell_NotifyIcon(NIM_DELETE, &nid);
 		PostQuitMessage(0);
 		break;
+
+	case MY_ICON_MESSAGE:
+		OutputDebugString(_T("My icon sent a message.\n"));
+
+		switch (lParam)
+		{
+		case WM_LBUTTONDBLCLK:
+			ShowWindow(hWnd, SW_RESTORE);
+			break;
+		case WM_RBUTTONDOWN:
+		case WM_CONTEXTMENU:
+			//ShowContextMenu(hWnd);
+		}
+
+		break;
+
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
 		break;
@@ -103,12 +125,12 @@ WinMain(
 	static const GUID myIconGUID =
 	{ 0xdb649cb7, 0x81b4, 0x4638, { 0xa9, 0x7d, 0x25, 0x55, 0x2a, 0x45, 0xd5, 0xc8 } };
 
-	NOTIFYICONDATA nid = { 0 };
+	//NOTIFYICONDATA nid = { 0 };
 	nid.cbSize = sizeof(NOTIFYICONDATA);
 	nid.hWnd = hWnd;
 	nid.uID = 0;
 	nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_GUID;
-	nid.uCallbackMessage = 9;
+	nid.uCallbackMessage = MY_ICON_MESSAGE;
 	nid.hIcon = LoadIcon(NULL, IDI_ASTERISK);
 	StringCchCopy(nid.szTip, ARRAYSIZE(nid.szTip), _T("A icon?"));
 	nid.dwState = 0;
