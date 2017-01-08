@@ -1,14 +1,101 @@
 // Compile with: /D_UNICODE /DUNICODE /DWIN32 /D_WINDOWS /c  
+#pragma comment( lib, "user32.lib" )
 
 #include <windows.h>  
 #include <stdlib.h>  
 #include <string.h>  
 #include <tchar.h>
 #include <strsafe.h>
+#include <string>
 
 // Globals (move these later):
 static const UINT MY_ICON_MESSAGE = WM_APP + 9;
 static NOTIFYICONDATA nid = { 0 };
+static HWND myWindow = NULL;
+
+static HHOOK hKeyboardHook;
+
+LRESULT CALLBACK
+KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
+{
+	CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
+
+	DWORD SHIFT_key = 0;
+	DWORD CTRL_key = 0;
+	DWORD ALT_key = 0;
+
+	if ((nCode == HC_ACTION) && ((wParam == WM_SYSKEYDOWN) || (wParam == WM_KEYDOWN)))
+	{
+		KBDLLHOOKSTRUCT HookedKey = *((KBDLLHOOKSTRUCT*)lParam);
+		
+		int key = HookedKey.vkCode;
+
+		SHIFT_key = GetAsyncKeyState(VK_SHIFT);
+		CTRL_key = GetAsyncKeyState(VK_CONTROL);
+		ALT_key = GetAsyncKeyState(VK_MENU);
+
+		if (key >= 'A' && key <= 'Z')
+		{
+			if (GetAsyncKeyState(VK_SHIFT) >= 0)
+			{
+				key += 32;
+			}
+
+			if (CTRL_key != 0 && key == 'y')
+			{
+				MessageBox(NULL, _T("CTRL-y was pressed\nLaunch your app here"), _T("H O T K E Y"), MB_OK);
+			}
+			else if (CTRL_key != 0 && ALT_key != 0 && key == 'c')
+			{
+				// Get clipboard data:
+				if (!IsClipboardFormatAvailable(CF_TEXT))
+				{
+					return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
+				}
+
+				if (!OpenClipboard(myWindow))
+				{
+					return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
+				}
+
+				HANDLE hData = GetClipboardData(CF_TEXT);
+				if (hData == NULL)
+				{
+					return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
+				}
+
+				// Get (ASCII?) text from the clipboard and display it.
+				char* text = static_cast<char*>(GlobalLock(hData));
+				if (text == NULL)
+				{
+					GlobalUnlock(hData);
+					CloseClipboard();
+					return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
+				}
+
+				int textLen = lstrlenA(text);
+				BSTR conText = SysAllocStringLen(NULL, textLen);
+				::MultiByteToWideChar(CP_ACP, 0, text, textLen, conText, textLen);
+				OutputDebugString(conText);
+				SysFreeString(conText);
+
+				GlobalUnlock(hData);
+				CloseClipboard();
+
+				//MessageBox(NULL, _T("CTRL-c was pressed\nData:"), _T("Cao"), MB_OK);
+			}
+			/*
+			else if (CTRL_key != 0 && key == 'q')
+			{
+				MessageBox(NULL, _T("Shutting down"), _T("H O T K E Y"), MB_OK);
+			}
+			*/
+		}
+
+	}
+
+	return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
+}
 
 LRESULT CALLBACK
 WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -25,10 +112,10 @@ WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		TextOut(hdc, 5, 5, greeting, _tcslen(greeting));
 
 		EndPaint(hWnd, &ps);
-
 		break;
 
 	case WM_DESTROY:
+		UnhookWindowsHookEx(hKeyboardHook);
 		Shell_NotifyIcon(NIM_DELETE, &nid);
 		PostQuitMessage(0);
 		break;
@@ -44,8 +131,8 @@ WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case WM_RBUTTONDOWN:
 		case WM_CONTEXTMENU:
 			//ShowContextMenu(hWnd);
+			break;
 		}
-
 		break;
 
 	default:
@@ -92,7 +179,7 @@ WinMain(
 
 
 	// Set up window:
-	HWND hWnd = CreateWindow(
+	myWindow = CreateWindow(
 		wcex.lpszClassName,
 		_T("Cao"),
 		WS_OVERLAPPEDWINDOW,
@@ -104,7 +191,7 @@ WinMain(
 		NULL
 	);
 
-	if (!hWnd)
+	if (!myWindow)
 	{
 		MessageBox(
 			NULL,
@@ -115,8 +202,8 @@ WinMain(
 		return 1;
 	}
 
-	ShowWindow(hWnd, nCmdShow);
-	UpdateWindow(hWnd);
+	ShowWindow(myWindow, nCmdShow);
+	UpdateWindow(myWindow);
 
 
 
@@ -127,7 +214,7 @@ WinMain(
 
 	//NOTIFYICONDATA nid = { 0 };
 	nid.cbSize = sizeof(NOTIFYICONDATA);
-	nid.hWnd = hWnd;
+	nid.hWnd = myWindow;
 	nid.uID = 0;
 	nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_GUID;
 	nid.uCallbackMessage = MY_ICON_MESSAGE;
@@ -147,7 +234,7 @@ WinMain(
 	if (!wasIconCreated)
 	{
 		MessageBox(
-			hWnd,
+			myWindow,
 			_T("Call to Shell_NotifyIcon failed!"),
 			_T("Cao"),
 			NULL);
@@ -156,7 +243,12 @@ WinMain(
 	}
 
 
+
+	// Set up global hook:
+	hKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, hInstance, NULL);
+
 	
+
 	// Main message loop:  
 	MSG msg;
 	while (GetMessage(&msg, NULL, 0, 0))
