@@ -7,6 +7,7 @@
 #include <tchar.h>
 #include <strsafe.h>
 #include <string>
+#include <sstream>
 
 // Globals (move these later):
 static const UINT MY_ICON_MESSAGE = WM_APP + 9;
@@ -45,19 +46,43 @@ KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
 			{
 				MessageBox(NULL, _T("CTRL-y was pressed\nLaunch your app here"), _T("H O T K E Y"), MB_OK);
 			}
-			else if (CTRL_key != 0 && ALT_key != 0 && key == 'c')
+			else if (CTRL_key != 0 && key == 'e')
 			{
 				// Get clipboard data:
+				/*
 				if (!IsClipboardFormatAvailable(CF_TEXT))
 				{
 					return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
 				}
+				*/
 
 				if (!OpenClipboard(myWindow))
 				{
 					return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
 				}
 
+
+
+				UINT firstFormat = EnumClipboardFormats(0);
+				UINT currentFormat = firstFormat;
+				do
+				{
+					std::wstringstream wss;
+					std::wstring str;
+
+					wss << currentFormat;
+					wss >> str;
+
+					OutputDebugString(str.c_str());
+					OutputDebugString(_T("\r\n"));
+
+					currentFormat = EnumClipboardFormats(currentFormat);
+
+				} while (currentFormat != firstFormat);
+
+				// Looks like I just need to handle CF_TEXT (1) and CF_BITMAP (2).
+
+				/*
 				HANDLE hData = GetClipboardData(CF_TEXT);
 				if (hData == NULL)
 				{
@@ -80,6 +105,10 @@ KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
 				SysFreeString(conText);
 
 				GlobalUnlock(hData);
+				*/
+
+
+
 				CloseClipboard();
 
 				//MessageBox(NULL, _T("CTRL-c was pressed\nData:"), _T("Cao"), MB_OK);
