@@ -6,8 +6,43 @@
 #include <string.h>  
 #include <tchar.h>
 #include <strsafe.h>
+#include <io.h>
+#include <fcntl.h>
+#include <stdio.h>
 #include <string>
-#include <sstream>
+#include <fstream>
+#include <iostream>
+
+// Bitmap structs:
+typedef struct
+{
+	std::uint32_t biSize;
+	std::int32_t  biWidth;
+	std::int32_t  biHeight;
+	std::uint16_t  biPlanes;
+	std::uint16_t  biBitCount;
+	std::uint32_t biCompression;
+	std::uint32_t biSizeImage;
+	std::int32_t  biXPelsPerMeter;
+	std::int32_t  biYPelsPerMeter;
+	std::uint32_t biClrUsed;
+	std::uint32_t biClrImportant;
+} DIB;
+
+typedef struct
+{
+	std::uint16_t type;
+	std::uint32_t bfSize;
+	std::uint32_t reserved;
+	std::uint32_t offset;
+} HEADER;
+
+typedef struct
+{
+	HEADER header;
+	DIB dib;
+} BMP;
+
 
 // Globals (move these later):
 static const UINT MY_ICON_MESSAGE = WM_APP + 9;
@@ -28,7 +63,7 @@ KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
 	if ((nCode == HC_ACTION) && ((wParam == WM_SYSKEYDOWN) || (wParam == WM_KEYDOWN)))
 	{
 		KBDLLHOOKSTRUCT HookedKey = *((KBDLLHOOKSTRUCT*)lParam);
-		
+
 		int key = HookedKey.vkCode;
 
 		SHIFT_key = GetAsyncKeyState(VK_SHIFT);
@@ -49,78 +84,138 @@ KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
 			else if (CTRL_key != 0 && key == 'e')
 			{
 				// Get clipboard data:
-				/*
-				if (!IsClipboardFormatAvailable(CF_TEXT))
-				{
-					return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
-				}
-				*/
-
+				// Try to open the clipboard.
 				if (!OpenClipboard(myWindow))
 				{
+					// On failure, give up and let the next hook in the chain run.
 					return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
 				}
 
 
 
+				// Find out which type of data we are dealing with.
+				// Right now just handling text and bitmap.
+				// Other possible options:
+				//   CF_HDROP: Selected file in explorer.
+				//   CF_WAVE: Wave file.
 				UINT firstFormat = EnumClipboardFormats(0);
 				UINT currentFormat = firstFormat;
+				bool isText = false;
+				bool isBitmap = false;
 				do
 				{
-					std::wstringstream wss;
-					std::wstring str;
+					std::cout << currentFormat << std::endl;
+					switch (currentFormat)
+					{
+					case CF_UNICODETEXT:
+						isText = true;
+						break;
 
-					wss << currentFormat;
-					wss >> str;
+					case CF_DIB:
+						isBitmap = true;
+						break;
 
-					OutputDebugString(str.c_str());
-					OutputDebugString(_T("\r\n"));
+					default:
+						currentFormat = EnumClipboardFormats(currentFormat);
+						break;
+					}
 
-					currentFormat = EnumClipboardFormats(currentFormat);
+				} while (currentFormat != firstFormat && !isText && !isBitmap);
 
-				} while (currentFormat != firstFormat);
 
-				// Looks like I just need to handle CF_TEXT (1) and CF_BITMAP (2).
 
-				/*
-				HANDLE hData = GetClipboardData(CF_TEXT);
-				if (hData == NULL)
+				if (isText)
 				{
-					return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
+					HGLOBAL hTextData = GetClipboardData(CF_UNICODETEXT);
+					if (hTextData == NULL)
+					{
+						goto cleanup;
+					}
+
+					wchar_t* text = static_cast<wchar_t*>(GlobalLock(hTextData));
+					if (text == NULL)
+					{
+						GlobalUnlock(text);
+						goto cleanup;
+					}
+
+					OutputDebugString(text);
+
+					GlobalUnlock(text);
+				}
+				else if (isBitmap)
+				{
+
+					HGLOBAL hBitmapData = GetClipboardData(CF_DIB);
+					if (hBitmapData == NULL)
+					{
+						goto cleanup;
+					}
+
+					void* dib = GlobalLock(hBitmapData);
+					if (dib == NULL)
+					{
+						GlobalUnlock(dib);
+						goto cleanup;
+					}
+
+					DIB *info = reinterpret_cast<DIB*>(dib);
+					BMP bmp = { 0 };
+					bmp.header.type = 0x4D42;
+					bmp.header.offset = 54;
+					bmp.header.bfSize = info->biSizeImage + bmp.header.offset;
+					bmp.dib = *info;
+
+					
+					std::cout << "Type: " << std::hex << bmp.header.type << std::dec << "\n";
+					std::cout << "bfSize: " << bmp.header.bfSize << "\n";
+					std::cout << "Reserved: " << bmp.header.reserved << "\n";
+					std::cout << "Offset: " << bmp.header.offset << "\n";
+					std::cout << "biSize: " << bmp.dib.biSize << "\n";
+					std::cout << "Width: " << bmp.dib.biWidth << "\n";
+					std::cout << "Height: " << bmp.dib.biHeight << "\n";
+					std::cout << "Planes: " << bmp.dib.biPlanes << "\n";
+					std::cout << "Bits: " << bmp.dib.biBitCount << "\n";
+					std::cout << "Compression: " << bmp.dib.biCompression << "\n";
+					std::cout << "Size: " << bmp.dib.biSizeImage << "\n";
+					std::cout << "X-res: " << bmp.dib.biXPelsPerMeter << "\n";
+					std::cout << "Y-res: " << bmp.dib.biYPelsPerMeter << "\n";
+					std::cout << "ClrUsed: " << bmp.dib.biClrUsed << "\n";
+					std::cout << "ClrImportant: " << bmp.dib.biClrImportant << "\n";
+					
+
+					std::ofstream file("C:/Users/Nathan/Desktop/Test.bmp", std::ios::out | std::ios::binary);
+					if (file)
+					{
+						file.write(reinterpret_cast<char*>(&bmp.header.type), sizeof(bmp.header.type));
+						file.write(reinterpret_cast<char*>(&bmp.header.bfSize), sizeof(bmp.header.bfSize));
+						file.write(reinterpret_cast<char*>(&bmp.header.reserved), sizeof(bmp.header.reserved));
+						file.write(reinterpret_cast<char*>(&bmp.header.offset), sizeof(bmp.header.offset));
+						file.write(reinterpret_cast<char*>(&bmp.dib.biSize), sizeof(bmp.dib.biSize));
+						file.write(reinterpret_cast<char*>(&bmp.dib.biWidth), sizeof(bmp.dib.biWidth));
+						file.write(reinterpret_cast<char*>(&bmp.dib.biHeight), sizeof(bmp.dib.biHeight));
+						file.write(reinterpret_cast<char*>(&bmp.dib.biPlanes), sizeof(bmp.dib.biPlanes));
+						file.write(reinterpret_cast<char*>(&bmp.dib.biBitCount), sizeof(bmp.dib.biBitCount));
+						file.write(reinterpret_cast<char*>(&bmp.dib.biCompression), sizeof(bmp.dib.biCompression));
+						file.write(reinterpret_cast<char*>(&bmp.dib.biSizeImage), sizeof(bmp.dib.biSizeImage));
+						file.write(reinterpret_cast<char*>(&bmp.dib.biXPelsPerMeter), sizeof(bmp.dib.biXPelsPerMeter));
+						file.write(reinterpret_cast<char*>(&bmp.dib.biYPelsPerMeter), sizeof(bmp.dib.biYPelsPerMeter));
+						file.write(reinterpret_cast<char*>(&bmp.dib.biClrUsed), sizeof(bmp.dib.biClrUsed));
+						file.write(reinterpret_cast<char*>(&bmp.dib.biClrImportant), sizeof(bmp.dib.biClrImportant));
+						file.write(reinterpret_cast<char*>(info + 1), bmp.dib.biSizeImage);
+					}
+
+					GlobalUnlock(dib);
+				}
+				else
+				{
+					// Error or no data.
 				}
 
-				// Get (ASCII?) text from the clipboard and display it.
-				char* text = static_cast<char*>(GlobalLock(hData));
-				if (text == NULL)
-				{
-					GlobalUnlock(hData);
-					CloseClipboard();
-					return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
-				}
-
-				int textLen = lstrlenA(text);
-				BSTR conText = SysAllocStringLen(NULL, textLen);
-				::MultiByteToWideChar(CP_ACP, 0, text, textLen, conText, textLen);
-				OutputDebugString(conText);
-				SysFreeString(conText);
-
-				GlobalUnlock(hData);
-				*/
-
-
-
+			cleanup:
 				CloseClipboard();
-
-				//MessageBox(NULL, _T("CTRL-c was pressed\nData:"), _T("Cao"), MB_OK);
 			}
-			/*
-			else if (CTRL_key != 0 && key == 'q')
-			{
-				MessageBox(NULL, _T("Shutting down"), _T("H O T K E Y"), MB_OK);
-			}
-			*/
 		}
-
 	}
 
 	return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
@@ -172,6 +267,22 @@ WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
+
+class OutBuffer : public std::streambuf
+{
+public:
+	OutBuffer()
+	{
+		setp(0, 0);
+	}
+
+	virtual int_type
+	overflow(int_type c = traits_type::eof())
+	{
+		return fputc(c, stdout) == EOF ? traits_type::eof() : c;
+	}
+};
+
 int CALLBACK
 WinMain(
 	_In_ HINSTANCE hInstance,
@@ -180,6 +291,20 @@ WinMain(
 	_In_ int       nCmdShow
 )
 {
+	// Set up and display console for debugging:
+	if (AllocConsole()) {
+		FILE* pCout;
+		freopen_s(&pCout, "CONOUT$", "w", stdout);
+		SetConsoleTitle(L"Debug Console");
+		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
+	}
+
+	OutBuffer buffer;
+	std::streambuf *sb = std::cout.rdbuf(&buffer);
+	std::cout.rdbuf(sb);
+
+
+
 	// Set up applicaion:
 	WNDCLASSEX wcex = { 0 };
 	wcex.cbSize = sizeof(WNDCLASSEX);
@@ -276,7 +401,7 @@ WinMain(
 	// Set up global hook:
 	hKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, hInstance, NULL);
 
-	
+
 
 	// Main message loop:  
 	MSG msg;
