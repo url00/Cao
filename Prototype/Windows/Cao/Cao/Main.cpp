@@ -13,10 +13,14 @@
 #include <fstream>
 #include <iostream>
 
-static const wchar_t *TITLE = L"Cao";
+static const wchar_t *Title = L"Cao";
 
-static const UINT MY_ICON_MESSAGE = WM_APP + 9;
+static const UINT IconMessage = WM_APP + 9;
 static NOTIFYICONDATA IconData = { 0 };
+static HMENU IconMenu;
+static const UINT __IconMenu_message_id_start = 1337;
+static const UINT IconMenu_Run = __IconMenu_message_id_start + 0;
+static const UINT IconMenu_Exit = __IconMenu_message_id_start + 1;
 
 static HWND MyWindow = NULL;
 
@@ -133,47 +137,87 @@ KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
 }
 
 LRESULT CALLBACK
-WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	PAINTSTRUCT ps;
 	HDC hdc;
 	TCHAR greeting[] = _T("Hello, World!");
 
-	switch (message)
-	{
-	case WM_PAINT:
-		hdc = BeginPaint(hWnd, &ps);
+    switch (message)
+    {
+        case WM_PAINT:
+        {
+            hdc = BeginPaint(Window, &ps);
 
-		TextOut(hdc, 5, 5, greeting, _tcslen(greeting));
+            TextOut(hdc, 5, 5, greeting, _tcslen(greeting));
 
-		EndPaint(hWnd, &ps);
-		break;
+            EndPaint(Window, &ps);
+            break;
+        }
 
-	case WM_DESTROY:
-		UnhookWindowsHookEx(KeyboardHook);
-		Shell_NotifyIcon(NIM_DELETE, &IconData);
-		PostQuitMessage(0);
-		break;
+        case WM_DESTROY:
+        {
+            UnhookWindowsHookEx(KeyboardHook);
+            Shell_NotifyIcon(NIM_DELETE, &IconData);
+            PostQuitMessage(0);
+            break;
+        }
 
-	case MY_ICON_MESSAGE:
-		OutputDebugString(_T("My icon sent a message.\n"));
+        case IconMessage:
+        {
+            switch (lParam)
+            {
+                case WM_LBUTTONDBLCLK:
+                {
+                    //ShowWindow(hWnd, SW_RESTORE);
+                    printf("Left clicked!\n");
+                    break;
+                }
+                case WM_RBUTTONDOWN:
+                {
+                    printf("Right clicked!\n");
 
-		switch (lParam)
-		{
-		case WM_LBUTTONDBLCLK:
-			ShowWindow(hWnd, SW_RESTORE);
-			break;
-		case WM_RBUTTONDOWN:
-		case WM_CONTEXTMENU:
-			//ShowContextMenu(hWnd);
-			break;
-		}
-		break;
+                    POINT CursorPoint;
+                    GetCursorPos(&CursorPoint);
 
-	default:
-		return DefWindowProc(hWnd, message, wParam, lParam);
-		break;
-	}
+                    SetForegroundWindow(Window);
+
+                    UINT clicked =
+                        TrackPopupMenu(
+                            IconMenu,
+                            TPM_RETURNCMD | TPM_NONOTIFY,
+                            CursorPoint.x,
+                            CursorPoint.y,
+                            0,
+                            Window,
+                            NULL);
+                    switch (clicked)
+                    {
+                        case IconMenu_Exit:
+                            DestroyWindow(Window);
+                            break;
+                    }
+
+                    break;
+                }
+
+                case WM_CONTEXTMENU:
+                {
+                    printf("WM_CONTEXTMENU\n");
+                    //ShowContextMenu(hWnd);
+                    break;
+                }
+            }
+
+            break;
+        }
+
+        default:
+        {
+            return DefWindowProc(Window, message, wParam, lParam);
+            break;
+        }
+    }
 
 	return 0;
 }
@@ -215,7 +259,7 @@ WinMain(
 	if (AllocConsole()) {
 		FILE *cout;
 		freopen_s(&cout, "CONOUT$", "w", stdout);
-		SetConsoleTitle(TITLE);
+		SetConsoleTitle(Title);
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
 	}
 
@@ -237,14 +281,14 @@ WinMain(
 	WindowClass.hCursor       = LoadCursor(NULL, IDC_ARROW);
 	WindowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 	WindowClass.lpszMenuName  = NULL;
-	WindowClass.lpszClassName = TITLE;
+	WindowClass.lpszClassName = Title;
 	WindowClass.hIconSm       = LoadIcon(WindowClass.hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
 
 	if (!RegisterClassEx(&WindowClass))
 	{
 		MessageBox(NULL,
 			_T("Call to RegisterClassEx failed!"),
-			TITLE,
+			Title,
 			NULL);
 
 		return 1;
@@ -255,7 +299,7 @@ WinMain(
 	// Set up window:
 	MyWindow = CreateWindow(
 		WindowClass.lpszClassName,
-		TITLE,
+		Title,
 		WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT, CW_USEDEFAULT,
 		500, 100,
@@ -270,7 +314,7 @@ WinMain(
 		MessageBox(
 			NULL,
 			_T("Call to CreateWindow failed!"),
-			TITLE,
+			Title,
 			NULL);
 
 		return 1;
@@ -288,27 +332,31 @@ WinMain(
 
 	
 
-	// Set up tray icon:
-	// {DB649CB7-81B4-4638-A97D-25552A45D5C8}
-	static const GUID IconGUID =
-	{ 0xdb649cb7, 0x81b4, 0x4638, { 0xa9, 0x7d, 0x25, 0x55, 0x2a, 0x45, 0xd5, 0xc8 } };
+    // Set up tray icon menu:
+    IconMenu = CreatePopupMenu();
+    AppendMenu(IconMenu, MF_STRING, IconMenu_Exit,  L"Run");
+    AppendMenu(IconMenu, MF_SEPARATOR, 0,  NULL);
+    AppendMenu(IconMenu, MF_STRING, IconMenu_Exit,  L"Exit");
 
-	//NOTIFYICONDATA nid = { 0 };
-	IconData.cbSize = sizeof(NOTIFYICONDATA);
-	IconData.hWnd = MyWindow;
-	IconData.uID = 0;
-	IconData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_GUID;
-	IconData.uCallbackMessage = MY_ICON_MESSAGE;
-	IconData.hIcon = LoadIcon(NULL, IDI_ASTERISK);
-	StringCchCopy(IconData.szTip, ARRAYSIZE(IconData.szTip), TITLE);
-	IconData.dwState = 0;
-	IconData.dwStateMask = 0;
-	StringCchCopy(IconData.szInfo, ARRAYSIZE(IconData.szInfo), TITLE);
-	IconData.uVersion = NOTIFYICON_VERSION_4;
-	StringCchCopy(IconData.szInfoTitle, ARRAYSIZE(IconData.szInfoTitle), _T("A icon?"));
-	IconData.dwInfoFlags = 0;
-	IconData.guidItem = IconGUID;
-	IconData.hBalloonIcon = NULL;
+
+
+	// Set up tray icon:
+	IconData.cbSize           = sizeof(NOTIFYICONDATA);
+	IconData.hWnd             = MyWindow;
+	IconData.uID              = 0;
+    // {DB649CB7-81B4-4638-A97D-25552A45D5C8}
+	IconData.guidItem         = { 0xdb649cb7, 0x81b4, 0x4638,{ 0xa9, 0x7d, 0x25, 0x55, 0x2a, 0x45, 0xd5, 0xc8 } };
+	IconData.hBalloonIcon     = NULL;
+	IconData.uFlags           = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_GUID;
+	IconData.uCallbackMessage = IconMessage;
+	IconData.dwState          = 0;
+	IconData.dwStateMask      = 0;
+	IconData.uVersion         = NOTIFYICON_VERSION_4;
+    IconData.dwInfoFlags      = 0;
+    IconData.hIcon = LoadIcon(NULL, IDI_ASTERISK);
+    StringCchCopy(IconData.szTip,       ARRAYSIZE(IconData.szTip),       Title);
+    StringCchCopy(IconData.szInfoTitle, ARRAYSIZE(IconData.szInfoTitle), Title);
+    StringCchCopy(IconData.szInfo,      ARRAYSIZE(IconData.szInfo),      Title);
 
 	// Add the icon.
 	BOOL wasIconCreated = Shell_NotifyIcon(NIM_ADD, &IconData);
@@ -326,7 +374,7 @@ WinMain(
             MessageBox(
                 MyWindow,
                 _T("Call to Shell_NotifyIcon failed!"),
-                TITLE,
+                Title,
                 NULL);
 
             return 1;
