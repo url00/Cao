@@ -18,13 +18,20 @@ static const wchar_t *Title = L"Cao";
 static const UINT IconMessage = WM_APP + 9;
 static NOTIFYICONDATA IconData = { 0 };
 static HMENU IconMenu;
-static const UINT __IconMenu_message_id_start = 1337;
-static const UINT IconMenu_Run = __IconMenu_message_id_start + 0;
-static const UINT IconMenu_Exit = __IconMenu_message_id_start + 1;
+static const UINT __IconMenu_MessageIdStart = 1337;
+static const UINT IconMenu_Run = __IconMenu_MessageIdStart + 0;
+static const UINT IconMenu_Exit = __IconMenu_MessageIdStart + 1;
 
 static HWND MyWindow = NULL;
 
 static HHOOK KeyboardHook;
+
+void
+CleanupStuff()
+{
+    UnhookWindowsHookEx(KeyboardHook);
+    Shell_NotifyIcon(NIM_DELETE, &IconData);
+}
 
 LRESULT CALLBACK
 KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
@@ -157,8 +164,7 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
 
         case WM_DESTROY:
         {
-            UnhookWindowsHookEx(KeyboardHook);
-            Shell_NotifyIcon(NIM_DELETE, &IconData);
+            CleanupStuff();
             PostQuitMessage(0);
             break;
         }
@@ -173,6 +179,7 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
                     printf("Left clicked!\n");
                     break;
                 }
+
                 case WM_RBUTTONDOWN:
                 {
                     printf("Right clicked!\n");
@@ -194,17 +201,17 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
                     switch (clicked)
                     {
                         case IconMenu_Exit:
-                            DestroyWindow(Window);
+                            printf("Exit clicked!\n");
+                            //DestroyWindow(Window);
+                            break;
+                        case IconMenu_Run:
+                            printf("Run clicked!\n");
+                            break;
+                        default:
+                            printf("No idea: %d", clicked);
                             break;
                     }
 
-                    break;
-                }
-
-                case WM_CONTEXTMENU:
-                {
-                    printf("WM_CONTEXTMENU\n");
-                    //ShowContextMenu(hWnd);
                     break;
                 }
             }
@@ -239,12 +246,24 @@ public:
 };
 
 LONG WINAPI
-CleanupPersistentStuff(PEXCEPTION_POINTERS pExceptionInfo)
+UnexpectedExitHandler(PEXCEPTION_POINTERS pExceptionInfo)
 {
-	UnhookWindowsHookEx(KeyboardHook);
-	Shell_NotifyIcon(NIM_DELETE, &IconData);
+    CleanupStuff();
 
     return EXCEPTION_CONTINUE_SEARCH;
+}
+
+BOOL WINAPI
+ConsoleCtrlHandler(
+    DWORD controlType
+)
+{
+    if (controlType == CTRL_CLOSE_EVENT)
+    {
+        CleanupStuff();
+    }
+
+    return false; 
 }
 
 int CALLBACK
@@ -261,6 +280,7 @@ WinMain(
 		freopen_s(&cout, "CONOUT$", "w", stdout);
 		SetConsoleTitle(Title);
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
+        SetConsoleCtrlHandler(ConsoleCtrlHandler, true);
 	}
 
 	OutBuffer Buffer;
@@ -327,14 +347,14 @@ WinMain(
 
 
 	// Set up cleanner upper for the notification icon no matter what happens. (Except stopping debugging still leaves garbage in the tray.)
-	SetUnhandledExceptionFilter(CleanupPersistentStuff);
+	SetUnhandledExceptionFilter(UnexpectedExitHandler);
 
 
 	
 
     // Set up tray icon menu:
     IconMenu = CreatePopupMenu();
-    AppendMenu(IconMenu, MF_STRING, IconMenu_Exit,  L"Run");
+    AppendMenu(IconMenu, MF_STRING, IconMenu_Run,  L"Run");
     AppendMenu(IconMenu, MF_SEPARATOR, 0,  NULL);
     AppendMenu(IconMenu, MF_STRING, IconMenu_Exit,  L"Exit");
 
