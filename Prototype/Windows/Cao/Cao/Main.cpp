@@ -33,6 +33,89 @@ CleanupStuff()
     Shell_NotifyIcon(NIM_DELETE, &IconData);
 }
 
+void
+Run()
+{
+    printf("Running.\n");
+    
+	// Get clipboard data:
+	// Try to open the clipboard.
+	if (!OpenClipboard(MyWindow))
+	{
+		// On failure, give up;
+		return;
+	}
+
+
+
+	// Find out which type of data we are dealing with.
+	// Right now just handling text and bitmap.
+	// Other possible options:
+	//   CF_HDROP: Selected file in explorer.
+	//   CF_WAVE: Wave file.
+	UINT firstFormat = EnumClipboardFormats(0);
+	UINT currentFormat = firstFormat;
+	bool isText = false;
+	bool isBitmap = false;
+	do
+	{
+		switch (currentFormat)
+		{
+			case CF_UNICODETEXT:
+            {
+				isText = true;
+				break;
+            }
+
+			case CF_DIB:
+            {
+				isBitmap = true;
+				break;
+            }
+
+			default:
+            {
+				currentFormat = EnumClipboardFormats(currentFormat);
+				break;
+            }
+		}
+
+	} while (currentFormat != firstFormat && !isText && !isBitmap);
+    
+
+
+	if (isText)
+	{
+		HGLOBAL hTextData = GetClipboardData(CF_UNICODETEXT);
+		if (hTextData == NULL)
+		{
+			goto exit;
+		}
+
+		wchar_t *text = static_cast<wchar_t*>(GlobalLock(hTextData));
+		if (text == NULL)
+		{
+			GlobalUnlock(text);
+			goto exit;
+		}
+
+		printf("Text:\n%ls", text);
+
+		GlobalUnlock(text);
+	}
+	else if (isBitmap)
+	{
+		// TODO: Consider adding bitmap support.
+	}
+	else
+	{
+		// Error or no data.
+	}
+
+exit:
+	CloseClipboard();
+}
+
 LRESULT CALLBACK
 KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
 {
@@ -65,77 +148,7 @@ KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
 			}
 			else if (CTRL_key != 0 && key == 'e')
 			{
-				// Get clipboard data:
-				// Try to open the clipboard.
-				if (!OpenClipboard(MyWindow))
-				{
-					// On failure, give up and let the next hook in the chain run.
-					return CallNextHookEx(KeyboardHook, nCode, wParam, lParam);
-				}
-
-
-
-				// Find out which type of data we are dealing with.
-				// Right now just handling text and bitmap.
-				// Other possible options:
-				//   CF_HDROP: Selected file in explorer.
-				//   CF_WAVE: Wave file.
-				UINT firstFormat = EnumClipboardFormats(0);
-				UINT currentFormat = firstFormat;
-				bool isText = false;
-				bool isBitmap = false;
-				do
-				{
-					std::cout << currentFormat << std::endl;
-					switch (currentFormat)
-					{
-					case CF_UNICODETEXT:
-						isText = true;
-						break;
-
-					case CF_DIB:
-						isBitmap = true;
-						break;
-
-					default:
-						currentFormat = EnumClipboardFormats(currentFormat);
-						break;
-					}
-
-				} while (currentFormat != firstFormat && !isText && !isBitmap);
-
-
-
-				if (isText)
-				{
-					HGLOBAL hTextData = GetClipboardData(CF_UNICODETEXT);
-					if (hTextData == NULL)
-					{
-						goto cleanup;
-					}
-
-					wchar_t* text = static_cast<wchar_t*>(GlobalLock(hTextData));
-					if (text == NULL)
-					{
-						GlobalUnlock(text);
-						goto cleanup;
-					}
-
-					OutputDebugString(text);
-
-					GlobalUnlock(text);
-				}
-				else if (isBitmap)
-				{
-					// TODO: Consider adding bitmap support.
-				}
-				else
-				{
-					// Error or no data.
-				}
-
-			cleanup:
-				CloseClipboard();
+                Run();
 			}
 		}
 	}
@@ -154,10 +167,12 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
     {
         case WM_PAINT:
         {
+            /*
             hdc = BeginPaint(Window, &ps);
 
             TextOut(hdc, 5, 5, greeting, _tcslen(greeting));
-
+            
+            */
             EndPaint(Window, &ps);
             break;
         }
@@ -201,15 +216,22 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
                     switch (clicked)
                     {
                         case IconMenu_Exit:
+                        {
                             printf("Exit clicked!\n");
-                            //DestroyWindow(Window);
+                            DestroyWindow(Window);
                             break;
+                        }
                         case IconMenu_Run:
+                        {
                             printf("Run clicked!\n");
+                            Run();
                             break;
+                        }
                         default:
+                        {
                             printf("No idea: %d", clicked);
                             break;
+                        }
                     }
 
                     break;
@@ -258,9 +280,15 @@ ConsoleCtrlHandler(
     DWORD controlType
 )
 {
-    if (controlType == CTRL_CLOSE_EVENT)
+    switch (controlType)
     {
-        CleanupStuff();
+        case CTRL_C_EVENT:
+        case CTRL_BREAK_EVENT:
+        case CTRL_CLOSE_EVENT:
+        {
+            CleanupStuff();
+            break;
+        }
     }
 
     return false; 
@@ -393,7 +421,7 @@ WinMain(
             // @Logging Log unable to start, couldn't create shell.
             MessageBox(
                 MyWindow,
-                _T("Call to Shell_NotifyIcon failed!"),
+                L"Call to Shell_NotifyIcon failed!",
                 Title,
                 NULL);
 
