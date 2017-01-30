@@ -13,8 +13,11 @@
 #include <fstream>
 #include <iostream>
 
+static const wchar_t *TITLE = L"Cao";
+
 static const UINT MY_ICON_MESSAGE = WM_APP + 9;
 static NOTIFYICONDATA IconData = { 0 };
+
 static HWND MyWindow = NULL;
 
 static HHOOK KeyboardHook;
@@ -175,7 +178,7 @@ WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-
+// For debug console.
 class OutBuffer : public std::streambuf
 {
 public:
@@ -202,46 +205,46 @@ CleanupPersistentStuff(PEXCEPTION_POINTERS pExceptionInfo)
 
 int CALLBACK
 WinMain(
-	_In_ HINSTANCE hInstance,
-	_In_ HINSTANCE hPrevInstance,
-	_In_ LPSTR     lpCmdLine,
-	_In_ int       nCmdShow
+	HINSTANCE Instance,
+	HINSTANCE PrevInstance,
+	char      *cmdLine,
+	int       cmdShow
 )
 {
 	// Set up and display console for debugging:
 	if (AllocConsole()) {
-		FILE* pCout;
-		freopen_s(&pCout, "CONOUT$", "w", stdout);
-		SetConsoleTitle(L"Debug Console");
+		FILE *cout;
+		freopen_s(&cout, "CONOUT$", "w", stdout);
+		SetConsoleTitle(TITLE);
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
 	}
 
-	OutBuffer buffer;
-	std::streambuf *sb = std::cout.rdbuf(&buffer);
+	OutBuffer Buffer;
+	std::streambuf *sb = std::cout.rdbuf(&Buffer);
 	std::cout.rdbuf(sb);
 
 
 
 	// Set up applicaion:
-	WNDCLASSEX wcex    = { 0 };
-	wcex.cbSize	       = sizeof(WNDCLASSEX);
-	wcex.style         = CS_HREDRAW | CS_VREDRAW;
-	wcex.lpfnWndProc   = WndProc;
-	wcex.cbClsExtra    = 0;
-	wcex.cbWndExtra    = 0;
-	wcex.hInstance     = hInstance;
-	wcex.hIcon         = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
-	wcex.hCursor       = LoadCursor(NULL, IDC_ARROW);
-	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-	wcex.lpszMenuName  = NULL;
-	wcex.lpszClassName = _T("cao");
-	wcex.hIconSm       = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
+	WNDCLASSEX WindowClass    = { 0 };
+	WindowClass.cbSize	       = sizeof(WNDCLASSEX);
+	WindowClass.style         = CS_HREDRAW | CS_VREDRAW;
+	WindowClass.lpfnWndProc   = WndProc;
+	WindowClass.cbClsExtra    = 0;
+	WindowClass.cbWndExtra    = 0;
+	WindowClass.hInstance     = Instance;
+	WindowClass.hIcon         = LoadIcon(Instance, MAKEINTRESOURCE(IDI_APPLICATION));
+	WindowClass.hCursor       = LoadCursor(NULL, IDC_ARROW);
+	WindowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+	WindowClass.lpszMenuName  = NULL;
+	WindowClass.lpszClassName = TITLE;
+	WindowClass.hIconSm       = LoadIcon(WindowClass.hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
 
-	if (!RegisterClassEx(&wcex))
+	if (!RegisterClassEx(&WindowClass))
 	{
 		MessageBox(NULL,
 			_T("Call to RegisterClassEx failed!"),
-			_T("Win32 Guided Tour"),
+			TITLE,
 			NULL);
 
 		return 1;
@@ -251,14 +254,14 @@ WinMain(
 
 	// Set up window:
 	MyWindow = CreateWindow(
-		wcex.lpszClassName,
-		_T("Cao"),
+		WindowClass.lpszClassName,
+		TITLE,
 		WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT, CW_USEDEFAULT,
 		500, 100,
 		NULL,
 		NULL,
-		hInstance,
+		Instance,
 		NULL
 	);
 
@@ -267,7 +270,7 @@ WinMain(
 		MessageBox(
 			NULL,
 			_T("Call to CreateWindow failed!"),
-			_T("Cao"),
+			TITLE,
 			NULL);
 
 		return 1;
@@ -297,10 +300,10 @@ WinMain(
 	IconData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_GUID;
 	IconData.uCallbackMessage = MY_ICON_MESSAGE;
 	IconData.hIcon = LoadIcon(NULL, IDI_ASTERISK);
-	StringCchCopy(IconData.szTip, ARRAYSIZE(IconData.szTip), _T("A icon?"));
+	StringCchCopy(IconData.szTip, ARRAYSIZE(IconData.szTip), TITLE);
 	IconData.dwState = 0;
 	IconData.dwStateMask = 0;
-	StringCchCopy(IconData.szInfo, ARRAYSIZE(IconData.szInfo), _T("A icon?"));
+	StringCchCopy(IconData.szInfo, ARRAYSIZE(IconData.szInfo), TITLE);
 	IconData.uVersion = NOTIFYICON_VERSION_4;
 	StringCchCopy(IconData.szInfoTitle, ARRAYSIZE(IconData.szInfoTitle), _T("A icon?"));
 	IconData.dwInfoFlags = 0;
@@ -323,7 +326,7 @@ WinMain(
             MessageBox(
                 MyWindow,
                 _T("Call to Shell_NotifyIcon failed!"),
-                _T("Cao"),
+                TITLE,
                 NULL);
 
             return 1;
@@ -333,7 +336,7 @@ WinMain(
 
 
 	// Set up global hook:
-	KeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, hInstance, NULL);
+	KeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, Instance, NULL);
 
 
 
