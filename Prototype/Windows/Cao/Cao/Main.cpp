@@ -383,8 +383,26 @@ Run()
         bool wasWritten = false;
         wasWritten = WriteFile(Child_In_Write, buffer, 5, &written, NULL);
         */
+        
+            CHAR chBuf[4096]; 
 
+        { 
+            DWORD dwRead, dwWritten; 
+            BOOL bSuccess = FALSE;
+            HANDLE hParentStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
 
+            for (;;) 
+            { 
+                bSuccess = ReadFile(Child_Out_Read, chBuf, 4096, &dwRead, NULL);
+                if( ! bSuccess || dwRead == 0 ) break; 
+
+                bSuccess = WriteFile(hParentStdOut, chBuf, 
+                                    dwRead, &dwWritten, NULL);
+                if (! bSuccess ) break; 
+            } 
+        }
+ 
+        printf("MAde it out.");
 
 
 
