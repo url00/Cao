@@ -15,6 +15,9 @@
 
 #include "Main.h"
 
+
+
+// Global data:
 static const wchar_t *Title = L"Cao";
 
 static const UINT IconMessage = WM_APP + 9;
@@ -27,6 +30,8 @@ static const UINT IconMenu_Exit = __IconMenu_MessageIdStart + 1;
 static HWND MyWindow = NULL;
 
 static HHOOK KeyboardHook;
+
+
 
 int CALLBACK
 WinMain(
@@ -241,30 +246,155 @@ Run()
 
 	if (isText)
 	{
-		HGLOBAL hTextData = GetClipboardData(CF_UNICODETEXT);
-		if (hTextData == NULL)
+		HGLOBAL textDataHandle = GetClipboardData(CF_UNICODETEXT);
+		if (textDataHandle == NULL)
 		{
 			goto exit;
 		}
 
-		wchar_t *text = static_cast<wchar_t*>(GlobalLock(hTextData));
+		wchar_t *text = static_cast<wchar_t*>(GlobalLock(textDataHandle));
 		if (text == NULL)
 		{
 			GlobalUnlock(text);
 			goto exit;
 		}
 
-		printf("Text:\n%ls", text);
+		printf("Text:\n%ls\n\n\n", text);
 
-		GlobalUnlock(text);
-	}
-	else if (isBitmap)
-	{
-		// TODO: Consider adding bitmap support.
+
+
+        // Start of child process creation:
+        
+        HANDLE Child_In_Read   = NULL;
+        HANDLE Child_In_Write  = NULL;
+        HANDLE Child_Out_Read  = NULL;
+        HANDLE Child_Out_Write = NULL;
+
+
+        SECURITY_ATTRIBUTES secAttr;
+        secAttr.nLength              = sizeof(secAttr);
+        secAttr.bInheritHandle       = true;
+        secAttr.lpSecurityDescriptor = NULL;
+
+        bool callResult = false;
+        callResult =
+            CreatePipe(
+                &Child_Out_Read,
+                &Child_Out_Write,
+                &secAttr,
+                0);
+
+        if (!callResult)
+        {
+            // @logging log error.
+            printf("Could not create pipe!\n");
+            goto exit;
+        }
+
+        callResult = SetHandleInformation(Child_Out_Read, HANDLE_FLAG_INHERIT, 0);
+        if (!callResult)
+        {
+            auto error = GetLastError();
+
+            // @logging log error.
+            printf("Could not set pipe information!\n");
+            goto exit;
+        }
+        
+        
+        callResult =
+            CreatePipe(
+                &Child_In_Read,
+                &Child_In_Write,
+                &secAttr,
+                0);
+        if (!callResult)
+        {
+            // @logging log error.
+            printf("Could not create pipe!\n");
+            goto exit;
+        }
+
+        callResult = SetHandleInformation(Child_In_Write, HANDLE_FLAG_INHERIT, 0);
+        if (!callResult)
+        {
+            // @logging log error.
+            printf("Could not set pipe information!\n");
+            goto exit;
+        }
+        
+        wchar_t commandLine[4096] = L"ping localhost";
+  
+        STARTUPINFO startupInfo = { 0 };
+        startupInfo.cb         = sizeof(startupInfo);
+        startupInfo.hStdError  = Child_Out_Write;
+        startupInfo.hStdOutput = Child_Out_Write;
+        startupInfo.hStdInput  = Child_In_Read;
+        startupInfo.dwFlags    = STARTF_USESTDHANDLES;
+         
+        PROCESS_INFORMATION procInfo = { 0 }; 
+    
+        bool success = false;
+        success = CreateProcess(
+            NULL, 
+            commandLine,
+            NULL,          
+            NULL,          
+            true,          
+            0,             
+            NULL,          
+            NULL,          
+            &startupInfo,  
+            &procInfo); 
+
+        if (!success)
+        {
+            printf("Could not start child process: %ls", commandLine);
+            goto exit;
+        }
+        else
+        {
+            // Close handles to the child process and its primary thread.
+            // Some applications might keep these handles to monitor the status
+            // of the child process, for example. 
+
+            CloseHandle(procInfo.hProcess);
+            CloseHandle(procInfo.hThread);
+        }
+
+
+        /*
+        HANDLE inputFile =
+            CreateFile(
+                L"inputFile", 
+                GENERIC_READ, 
+                0, 
+                NULL, 
+                OPEN_EXISTING, 
+                FILE_ATTRIBUTE_READONLY, 
+                NULL);
+        */
+
+        /*
+        DWORD written;
+
+        char buffer[5] = "test";
+
+        bool wasWritten = false;
+        wasWritten = WriteFile(Child_In_Write, buffer, 5, &written, NULL);
+        */
+
+
+
+
+
+
+		GlobalUnlock(textDataHandle);
 	}
 	else
 	{
 		// Error or no data.
+        goto exit;
 	}
 
 exit:
