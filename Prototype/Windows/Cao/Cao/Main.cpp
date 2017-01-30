@@ -363,46 +363,29 @@ Run()
         }
 
 
-        /*
-        HANDLE inputFile =
-            CreateFile(
-                L"inputFile", 
-                GENERIC_READ, 
-                0, 
-                NULL, 
-                OPEN_EXISTING, 
-                FILE_ATTRIBUTE_READONLY, 
-                NULL);
-        */
-
-        /*
-        DWORD written;
-
-        char buffer[5] = "test";
-
-        bool wasWritten = false;
-        wasWritten = WriteFile(Child_In_Write, buffer, 5, &written, NULL);
-        */
         
-            CHAR chBuf[4096]; 
+#define processOutputBuffer_size 4096
+            char processOutputBuffer[processOutputBuffer_size];
+            HANDLE My_Out = GetStdHandle(STD_OUTPUT_HANDLE);
+            DWORD numBytesRead = 0;
+            DWORD numBytesWritten = 0;
+            bool wasNoDataRead = false;
 
-        { 
-            DWORD dwRead, dwWritten; 
-            BOOL bSuccess = FALSE;
-            HANDLE hParentStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+            do
+            {
+                wasNoDataRead = ReadFile(Child_Out_Read, processOutputBuffer, processOutputBuffer_size, &numBytesRead, NULL);
+                if (numBytesRead == 0)
+                {
+                    wasNoDataRead = true;
+                }
+            } while (!wasNoDataRead);
 
-            for (;;) 
-            { 
-                bSuccess = ReadFile(Child_Out_Read, chBuf, 4096, &dwRead, NULL);
-                if( ! bSuccess || dwRead == 0 ) break; 
-
-                bSuccess = WriteFile(hParentStdOut, chBuf, 
-                                    dwRead, &dwWritten, NULL);
-                if (! bSuccess ) break; 
-            } 
-        }
- 
-        printf("MAde it out.");
+            do
+            {
+                wasNoDataRead = WriteFile(My_Out, processOutputBuffer, numBytesRead, &numBytesWritten, NULL);                
+            } while (!wasNoDataRead);
+             
+        printf("Made it out.");
 
 
 
