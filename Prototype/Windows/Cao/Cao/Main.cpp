@@ -1,5 +1,5 @@
 // Compile with: /D_UNICODE /DUNICODE /DWIN32 /D_WINDOWS /c  
-#pragma comment( lib, "user32.lib" )
+#pragma comment(lib, "user32.lib")
 
 #include <windows.h>  
 #include <stdlib.h>  
@@ -13,48 +13,16 @@
 #include <fstream>
 #include <iostream>
 
-// Bitmap structs:
-typedef struct
-{
-	std::uint32_t biSize;
-	std::int32_t  biWidth;
-	std::int32_t  biHeight;
-	std::uint16_t  biPlanes;
-	std::uint16_t  biBitCount;
-	std::uint32_t biCompression;
-	std::uint32_t biSizeImage;
-	std::int32_t  biXPelsPerMeter;
-	std::int32_t  biYPelsPerMeter;
-	std::uint32_t biClrUsed;
-	std::uint32_t biClrImportant;
-} DIB;
-
-typedef struct
-{
-	std::uint16_t type;
-	std::uint32_t bfSize;
-	std::uint32_t reserved;
-	std::uint32_t offset;
-} HEADER;
-
-typedef struct
-{
-	HEADER header;
-	DIB dib;
-} BMP;
-
-
-// Globals (move these later):
 static const UINT MY_ICON_MESSAGE = WM_APP + 9;
-static NOTIFYICONDATA nid = { 0 };
-static HWND myWindow = NULL;
+static NOTIFYICONDATA IconData = { 0 };
+static HWND MyWindow = NULL;
 
-static HHOOK hKeyboardHook;
+static HHOOK KeyboardHook;
 
 LRESULT CALLBACK
 KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
 {
-	CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
+	CallNextHookEx(KeyboardHook, nCode, wParam, lParam);
 
 	DWORD SHIFT_key = 0;
 	DWORD CTRL_key = 0;
@@ -85,10 +53,10 @@ KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
 			{
 				// Get clipboard data:
 				// Try to open the clipboard.
-				if (!OpenClipboard(myWindow))
+				if (!OpenClipboard(MyWindow))
 				{
 					// On failure, give up and let the next hook in the chain run.
-					return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
+					return CallNextHookEx(KeyboardHook, nCode, wParam, lParam);
 				}
 
 
@@ -145,67 +113,7 @@ KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
 				}
 				else if (isBitmap)
 				{
-
-					HGLOBAL hBitmapData = GetClipboardData(CF_DIB);
-					if (hBitmapData == NULL)
-					{
-						goto cleanup;
-					}
-
-					void* dib = GlobalLock(hBitmapData);
-					if (dib == NULL)
-					{
-						GlobalUnlock(dib);
-						goto cleanup;
-					}
-
-					DIB *info = reinterpret_cast<DIB*>(dib);
-					BMP bmp = { 0 };
-					bmp.header.type = 0x4D42;
-					bmp.header.offset = 54;
-					bmp.header.bfSize = info->biSizeImage + bmp.header.offset;
-					bmp.dib = *info;
-
-					
-					std::cout << "Type: " << std::hex << bmp.header.type << std::dec << "\n";
-					std::cout << "bfSize: " << bmp.header.bfSize << "\n";
-					std::cout << "Reserved: " << bmp.header.reserved << "\n";
-					std::cout << "Offset: " << bmp.header.offset << "\n";
-					std::cout << "biSize: " << bmp.dib.biSize << "\n";
-					std::cout << "Width: " << bmp.dib.biWidth << "\n";
-					std::cout << "Height: " << bmp.dib.biHeight << "\n";
-					std::cout << "Planes: " << bmp.dib.biPlanes << "\n";
-					std::cout << "Bits: " << bmp.dib.biBitCount << "\n";
-					std::cout << "Compression: " << bmp.dib.biCompression << "\n";
-					std::cout << "Size: " << bmp.dib.biSizeImage << "\n";
-					std::cout << "X-res: " << bmp.dib.biXPelsPerMeter << "\n";
-					std::cout << "Y-res: " << bmp.dib.biYPelsPerMeter << "\n";
-					std::cout << "ClrUsed: " << bmp.dib.biClrUsed << "\n";
-					std::cout << "ClrImportant: " << bmp.dib.biClrImportant << "\n";
-					
-
-					std::ofstream file("C:/Users/Nathan/Desktop/Test.bmp", std::ios::out | std::ios::binary);
-					if (file)
-					{
-						file.write(reinterpret_cast<char*>(&bmp.header.type), sizeof(bmp.header.type));
-						file.write(reinterpret_cast<char*>(&bmp.header.bfSize), sizeof(bmp.header.bfSize));
-						file.write(reinterpret_cast<char*>(&bmp.header.reserved), sizeof(bmp.header.reserved));
-						file.write(reinterpret_cast<char*>(&bmp.header.offset), sizeof(bmp.header.offset));
-						file.write(reinterpret_cast<char*>(&bmp.dib.biSize), sizeof(bmp.dib.biSize));
-						file.write(reinterpret_cast<char*>(&bmp.dib.biWidth), sizeof(bmp.dib.biWidth));
-						file.write(reinterpret_cast<char*>(&bmp.dib.biHeight), sizeof(bmp.dib.biHeight));
-						file.write(reinterpret_cast<char*>(&bmp.dib.biPlanes), sizeof(bmp.dib.biPlanes));
-						file.write(reinterpret_cast<char*>(&bmp.dib.biBitCount), sizeof(bmp.dib.biBitCount));
-						file.write(reinterpret_cast<char*>(&bmp.dib.biCompression), sizeof(bmp.dib.biCompression));
-						file.write(reinterpret_cast<char*>(&bmp.dib.biSizeImage), sizeof(bmp.dib.biSizeImage));
-						file.write(reinterpret_cast<char*>(&bmp.dib.biXPelsPerMeter), sizeof(bmp.dib.biXPelsPerMeter));
-						file.write(reinterpret_cast<char*>(&bmp.dib.biYPelsPerMeter), sizeof(bmp.dib.biYPelsPerMeter));
-						file.write(reinterpret_cast<char*>(&bmp.dib.biClrUsed), sizeof(bmp.dib.biClrUsed));
-						file.write(reinterpret_cast<char*>(&bmp.dib.biClrImportant), sizeof(bmp.dib.biClrImportant));
-						file.write(reinterpret_cast<char*>(info + 1), bmp.dib.biSizeImage);
-					}
-
-					GlobalUnlock(dib);
+					// TODO: Consider adding bitmap support.
 				}
 				else
 				{
@@ -218,7 +126,7 @@ KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
 		}
 	}
 
-	return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
+	return CallNextHookEx(KeyboardHook, nCode, wParam, lParam);
 }
 
 LRESULT CALLBACK
@@ -239,8 +147,8 @@ WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_DESTROY:
-		UnhookWindowsHookEx(hKeyboardHook);
-		Shell_NotifyIcon(NIM_DELETE, &nid);
+		UnhookWindowsHookEx(KeyboardHook);
+		Shell_NotifyIcon(NIM_DELETE, &IconData);
 		PostQuitMessage(0);
 		break;
 
@@ -283,6 +191,15 @@ public:
 	}
 };
 
+LONG WINAPI
+CleanupPersistentStuff(PEXCEPTION_POINTERS pExceptionInfo)
+{
+	UnhookWindowsHookEx(KeyboardHook);
+	Shell_NotifyIcon(NIM_DELETE, &IconData);
+
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
 int CALLBACK
 WinMain(
 	_In_ HINSTANCE hInstance,
@@ -306,19 +223,19 @@ WinMain(
 
 
 	// Set up applicaion:
-	WNDCLASSEX wcex = { 0 };
-	wcex.cbSize = sizeof(WNDCLASSEX);
-	wcex.style = CS_HREDRAW | CS_VREDRAW;
-	wcex.lpfnWndProc = WndProc;
-	wcex.cbClsExtra = 0;
-	wcex.cbWndExtra = 0;
-	wcex.hInstance = hInstance;
-	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
-	wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+	WNDCLASSEX wcex    = { 0 };
+	wcex.cbSize	       = sizeof(WNDCLASSEX);
+	wcex.style         = CS_HREDRAW | CS_VREDRAW;
+	wcex.lpfnWndProc   = WndProc;
+	wcex.cbClsExtra    = 0;
+	wcex.cbWndExtra    = 0;
+	wcex.hInstance     = hInstance;
+	wcex.hIcon         = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
+	wcex.hCursor       = LoadCursor(NULL, IDC_ARROW);
 	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-	wcex.lpszMenuName = NULL;
+	wcex.lpszMenuName  = NULL;
 	wcex.lpszClassName = _T("cao");
-	wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
+	wcex.hIconSm       = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
 
 	if (!RegisterClassEx(&wcex))
 	{
@@ -333,7 +250,7 @@ WinMain(
 
 
 	// Set up window:
-	myWindow = CreateWindow(
+	MyWindow = CreateWindow(
 		wcex.lpszClassName,
 		_T("Cao"),
 		WS_OVERLAPPEDWINDOW,
@@ -345,7 +262,7 @@ WinMain(
 		NULL
 	);
 
-	if (!myWindow)
+	if (!MyWindow)
 	{
 		MessageBox(
 			NULL,
@@ -356,50 +273,67 @@ WinMain(
 		return 1;
 	}
 
-	ShowWindow(myWindow, nCmdShow);
-	UpdateWindow(myWindow);
+	// TODO: Only show window on click or keyboard shortcut.
+	//ShowWindow(MyWindow, nCmdShow);
+	UpdateWindow(MyWindow);
 
 
+
+	// Set up cleanner upper for the notification icon no matter what happens. (Except stopping debugging still leaves garbage in the tray.)
+	SetUnhandledExceptionFilter(CleanupPersistentStuff);
+
+
+	
 
 	// Set up tray icon:
 	// {DB649CB7-81B4-4638-A97D-25552A45D5C8}
-	static const GUID myIconGUID =
+	static const GUID IconGUID =
 	{ 0xdb649cb7, 0x81b4, 0x4638, { 0xa9, 0x7d, 0x25, 0x55, 0x2a, 0x45, 0xd5, 0xc8 } };
 
 	//NOTIFYICONDATA nid = { 0 };
-	nid.cbSize = sizeof(NOTIFYICONDATA);
-	nid.hWnd = myWindow;
-	nid.uID = 0;
-	nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_GUID;
-	nid.uCallbackMessage = MY_ICON_MESSAGE;
-	nid.hIcon = LoadIcon(NULL, IDI_ASTERISK);
-	StringCchCopy(nid.szTip, ARRAYSIZE(nid.szTip), _T("A icon?"));
-	nid.dwState = 0;
-	nid.dwStateMask = 0;
-	StringCchCopy(nid.szInfo, ARRAYSIZE(nid.szInfo), _T("A icon?"));
-	nid.uVersion = NOTIFYICON_VERSION_4;
-	StringCchCopy(nid.szInfoTitle, ARRAYSIZE(nid.szInfoTitle), _T("A icon?"));
-	nid.dwInfoFlags = 0;
-	nid.guidItem = myIconGUID;
-	nid.hBalloonIcon = NULL;
+	IconData.cbSize = sizeof(NOTIFYICONDATA);
+	IconData.hWnd = MyWindow;
+	IconData.uID = 0;
+	IconData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_GUID;
+	IconData.uCallbackMessage = MY_ICON_MESSAGE;
+	IconData.hIcon = LoadIcon(NULL, IDI_ASTERISK);
+	StringCchCopy(IconData.szTip, ARRAYSIZE(IconData.szTip), _T("A icon?"));
+	IconData.dwState = 0;
+	IconData.dwStateMask = 0;
+	StringCchCopy(IconData.szInfo, ARRAYSIZE(IconData.szInfo), _T("A icon?"));
+	IconData.uVersion = NOTIFYICON_VERSION_4;
+	StringCchCopy(IconData.szInfoTitle, ARRAYSIZE(IconData.szInfoTitle), _T("A icon?"));
+	IconData.dwInfoFlags = 0;
+	IconData.guidItem = IconGUID;
+	IconData.hBalloonIcon = NULL;
 
 	// Add the icon.
-	BOOL wasIconCreated = Shell_NotifyIcon(NIM_ADD, &nid);
+	BOOL wasIconCreated = Shell_NotifyIcon(NIM_ADD, &IconData);
 	if (!wasIconCreated)
 	{
-		MessageBox(
-			myWindow,
-			_T("Call to Shell_NotifyIcon failed!"),
-			_T("Cao"),
-			NULL);
+        // Most likely there is an instance of the icon left from a previous run.
+        // Try to delete the existing instance.
+        Shell_NotifyIcon(NIM_DELETE, &IconData);
 
-		return 1;
+        // Try to create an instance for this run.
+        wasIconCreated = Shell_NotifyIcon(NIM_ADD, &IconData);
+        if (!wasIconCreated)
+        {
+            // @Logging Log unable to start, couldn't create shell.
+            MessageBox(
+                MyWindow,
+                _T("Call to Shell_NotifyIcon failed!"),
+                _T("Cao"),
+                NULL);
+
+            return 1;
+        }
 	}
 
 
 
 	// Set up global hook:
-	hKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, hInstance, NULL);
+	KeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, hInstance, NULL);
 
 
 
