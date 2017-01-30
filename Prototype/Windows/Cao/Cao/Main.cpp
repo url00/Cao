@@ -13,6 +13,8 @@
 #include <fstream>
 #include <iostream>
 
+#include "Main.h"
+
 static const wchar_t *Title = L"Cao";
 
 static const UINT IconMessage = WM_APP + 9;
@@ -25,6 +27,159 @@ static const UINT IconMenu_Exit = __IconMenu_MessageIdStart + 1;
 static HWND MyWindow = NULL;
 
 static HHOOK KeyboardHook;
+
+int CALLBACK
+WinMain(
+	HINSTANCE Instance,
+	HINSTANCE PrevInstance,
+	char      *cmdLine,
+	int       cmdShow
+)
+{
+	// Set up and display console for debugging:
+	if (AllocConsole()) {
+		FILE *cout;
+		freopen_s(&cout, "CONOUT$", "w", stdout);
+		SetConsoleTitle(Title);
+		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
+        SetConsoleCtrlHandler(ConsoleCtrlHandler, true);
+	}
+
+	OutBuffer Buffer;
+	std::streambuf *sb = std::cout.rdbuf(&Buffer);
+	std::cout.rdbuf(sb);
+
+
+
+	// Set up applicaion:
+	WNDCLASSEX WindowClass    = { 0 };
+	WindowClass.cbSize	       = sizeof(WNDCLASSEX);
+	WindowClass.style         = CS_HREDRAW | CS_VREDRAW;
+	WindowClass.lpfnWndProc   = WndProc;
+	WindowClass.cbClsExtra    = 0;
+	WindowClass.cbWndExtra    = 0;
+	WindowClass.hInstance     = Instance;
+	WindowClass.hIcon         = LoadIcon(Instance, MAKEINTRESOURCE(IDI_APPLICATION));
+	WindowClass.hCursor       = LoadCursor(NULL, IDC_ARROW);
+	WindowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+	WindowClass.lpszMenuName  = NULL;
+	WindowClass.lpszClassName = Title;
+	WindowClass.hIconSm       = LoadIcon(WindowClass.hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
+
+	if (!RegisterClassEx(&WindowClass))
+	{
+		MessageBox(NULL,
+			_T("Call to RegisterClassEx failed!"),
+			Title,
+			NULL);
+
+		return 1;
+	}
+
+
+
+	// Set up window:
+	MyWindow = CreateWindow(
+		WindowClass.lpszClassName,
+		Title,
+		WS_OVERLAPPEDWINDOW,
+		CW_USEDEFAULT, CW_USEDEFAULT,
+		500, 100,
+		NULL,
+		NULL,
+		Instance,
+		NULL
+	);
+
+	if (!MyWindow)
+	{
+		MessageBox(
+			NULL,
+			_T("Call to CreateWindow failed!"),
+			Title,
+			NULL);
+
+		return 1;
+	}
+
+	// TODO: Only show window on click or keyboard shortcut.
+	//ShowWindow(MyWindow, nCmdShow);
+	UpdateWindow(MyWindow);
+
+
+
+	// Set up cleanner upper for the notification icon no matter what happens. (Except stopping debugging still leaves garbage in the tray.)
+	SetUnhandledExceptionFilter(UnexpectedExitHandler);
+
+
+	
+
+    // Set up tray icon menu:
+    IconMenu = CreatePopupMenu();
+    AppendMenu(IconMenu, MF_STRING, IconMenu_Run,  L"Run");
+    AppendMenu(IconMenu, MF_SEPARATOR, 0,  NULL);
+    AppendMenu(IconMenu, MF_STRING, IconMenu_Exit,  L"Exit");
+
+
+
+	// Set up tray icon:
+	IconData.cbSize           = sizeof(NOTIFYICONDATA);
+	IconData.hWnd             = MyWindow;
+	IconData.uID              = 0;
+    // {DB649CB7-81B4-4638-A97D-25552A45D5C8}
+	IconData.guidItem         = { 0xdb649cb7, 0x81b4, 0x4638,{ 0xa9, 0x7d, 0x25, 0x55, 0x2a, 0x45, 0xd5, 0xc8 } };
+	IconData.hBalloonIcon     = NULL;
+	IconData.uFlags           = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_GUID;
+	IconData.uCallbackMessage = IconMessage;
+	IconData.dwState          = 0;
+	IconData.dwStateMask      = 0;
+	IconData.uVersion         = NOTIFYICON_VERSION_4;
+    IconData.dwInfoFlags      = 0;
+    IconData.hIcon = LoadIcon(NULL, IDI_ASTERISK);
+    StringCchCopy(IconData.szTip,       ARRAYSIZE(IconData.szTip),       Title);
+    StringCchCopy(IconData.szInfoTitle, ARRAYSIZE(IconData.szInfoTitle), Title);
+    StringCchCopy(IconData.szInfo,      ARRAYSIZE(IconData.szInfo),      Title);
+
+	// Add the icon.
+	BOOL wasIconCreated = Shell_NotifyIcon(NIM_ADD, &IconData);
+	if (!wasIconCreated)
+	{
+        // Most likely there is an instance of the icon left from a previous run.
+        // Try to delete the existing instance.
+        Shell_NotifyIcon(NIM_DELETE, &IconData);
+
+        // Try to create an instance for this run.
+        wasIconCreated = Shell_NotifyIcon(NIM_ADD, &IconData);
+        if (!wasIconCreated)
+        {
+            // @Logging Log unable to start, couldn't create shell.
+            MessageBox(
+                MyWindow,
+                L"Call to Shell_NotifyIcon failed!",
+                Title,
+                NULL);
+
+            return 1;
+        }
+	}
+
+
+
+	// Set up global hook:
+	KeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, Instance, NULL);
+
+
+
+	// Main message loop:  
+	MSG msg;
+	while (GetMessage(&msg, NULL, 0, 0))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+
+	return (int)msg.wParam;
+}
 
 void
 CleanupStuff()
@@ -251,22 +406,6 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-// For debug console.
-class OutBuffer : public std::streambuf
-{
-public:
-	OutBuffer()
-	{
-		setp(0, 0);
-	}
-
-	virtual int_type
-	overflow(int_type c = traits_type::eof())
-	{
-		return fputc(c, stdout) == EOF ? traits_type::eof() : c;
-	}
-};
-
 LONG WINAPI
 UnexpectedExitHandler(PEXCEPTION_POINTERS pExceptionInfo)
 {
@@ -292,157 +431,4 @@ ConsoleCtrlHandler(
     }
 
     return false; 
-}
-
-int CALLBACK
-WinMain(
-	HINSTANCE Instance,
-	HINSTANCE PrevInstance,
-	char      *cmdLine,
-	int       cmdShow
-)
-{
-	// Set up and display console for debugging:
-	if (AllocConsole()) {
-		FILE *cout;
-		freopen_s(&cout, "CONOUT$", "w", stdout);
-		SetConsoleTitle(Title);
-		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
-        SetConsoleCtrlHandler(ConsoleCtrlHandler, true);
-	}
-
-	OutBuffer Buffer;
-	std::streambuf *sb = std::cout.rdbuf(&Buffer);
-	std::cout.rdbuf(sb);
-
-
-
-	// Set up applicaion:
-	WNDCLASSEX WindowClass    = { 0 };
-	WindowClass.cbSize	       = sizeof(WNDCLASSEX);
-	WindowClass.style         = CS_HREDRAW | CS_VREDRAW;
-	WindowClass.lpfnWndProc   = WndProc;
-	WindowClass.cbClsExtra    = 0;
-	WindowClass.cbWndExtra    = 0;
-	WindowClass.hInstance     = Instance;
-	WindowClass.hIcon         = LoadIcon(Instance, MAKEINTRESOURCE(IDI_APPLICATION));
-	WindowClass.hCursor       = LoadCursor(NULL, IDC_ARROW);
-	WindowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-	WindowClass.lpszMenuName  = NULL;
-	WindowClass.lpszClassName = Title;
-	WindowClass.hIconSm       = LoadIcon(WindowClass.hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
-
-	if (!RegisterClassEx(&WindowClass))
-	{
-		MessageBox(NULL,
-			_T("Call to RegisterClassEx failed!"),
-			Title,
-			NULL);
-
-		return 1;
-	}
-
-
-
-	// Set up window:
-	MyWindow = CreateWindow(
-		WindowClass.lpszClassName,
-		Title,
-		WS_OVERLAPPEDWINDOW,
-		CW_USEDEFAULT, CW_USEDEFAULT,
-		500, 100,
-		NULL,
-		NULL,
-		Instance,
-		NULL
-	);
-
-	if (!MyWindow)
-	{
-		MessageBox(
-			NULL,
-			_T("Call to CreateWindow failed!"),
-			Title,
-			NULL);
-
-		return 1;
-	}
-
-	// TODO: Only show window on click or keyboard shortcut.
-	//ShowWindow(MyWindow, nCmdShow);
-	UpdateWindow(MyWindow);
-
-
-
-	// Set up cleanner upper for the notification icon no matter what happens. (Except stopping debugging still leaves garbage in the tray.)
-	SetUnhandledExceptionFilter(UnexpectedExitHandler);
-
-
-	
-
-    // Set up tray icon menu:
-    IconMenu = CreatePopupMenu();
-    AppendMenu(IconMenu, MF_STRING, IconMenu_Run,  L"Run");
-    AppendMenu(IconMenu, MF_SEPARATOR, 0,  NULL);
-    AppendMenu(IconMenu, MF_STRING, IconMenu_Exit,  L"Exit");
-
-
-
-	// Set up tray icon:
-	IconData.cbSize           = sizeof(NOTIFYICONDATA);
-	IconData.hWnd             = MyWindow;
-	IconData.uID              = 0;
-    // {DB649CB7-81B4-4638-A97D-25552A45D5C8}
-	IconData.guidItem         = { 0xdb649cb7, 0x81b4, 0x4638,{ 0xa9, 0x7d, 0x25, 0x55, 0x2a, 0x45, 0xd5, 0xc8 } };
-	IconData.hBalloonIcon     = NULL;
-	IconData.uFlags           = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_GUID;
-	IconData.uCallbackMessage = IconMessage;
-	IconData.dwState          = 0;
-	IconData.dwStateMask      = 0;
-	IconData.uVersion         = NOTIFYICON_VERSION_4;
-    IconData.dwInfoFlags      = 0;
-    IconData.hIcon = LoadIcon(NULL, IDI_ASTERISK);
-    StringCchCopy(IconData.szTip,       ARRAYSIZE(IconData.szTip),       Title);
-    StringCchCopy(IconData.szInfoTitle, ARRAYSIZE(IconData.szInfoTitle), Title);
-    StringCchCopy(IconData.szInfo,      ARRAYSIZE(IconData.szInfo),      Title);
-
-	// Add the icon.
-	BOOL wasIconCreated = Shell_NotifyIcon(NIM_ADD, &IconData);
-	if (!wasIconCreated)
-	{
-        // Most likely there is an instance of the icon left from a previous run.
-        // Try to delete the existing instance.
-        Shell_NotifyIcon(NIM_DELETE, &IconData);
-
-        // Try to create an instance for this run.
-        wasIconCreated = Shell_NotifyIcon(NIM_ADD, &IconData);
-        if (!wasIconCreated)
-        {
-            // @Logging Log unable to start, couldn't create shell.
-            MessageBox(
-                MyWindow,
-                L"Call to Shell_NotifyIcon failed!",
-                Title,
-                NULL);
-
-            return 1;
-        }
-	}
-
-
-
-	// Set up global hook:
-	KeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, Instance, NULL);
-
-
-
-	// Main message loop:  
-	MSG msg;
-	while (GetMessage(&msg, NULL, 0, 0))
-	{
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
-	}
-
-	return (int)msg.wParam;
 }
