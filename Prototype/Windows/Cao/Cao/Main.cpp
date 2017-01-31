@@ -265,6 +265,7 @@ Run()
 
         // Start of child process creation:
         
+        // Create handles for standard IO.
         HANDLE Child_In_Read   = NULL;
         HANDLE Child_In_Write  = NULL;
         HANDLE Child_Out_Read  = NULL;
@@ -323,7 +324,8 @@ Run()
             goto exit;
         }
         
-        wchar_t commandLine[4096] = L"ping localhost";
+        wchar_t commandLine[4096] = L"..\\..\\..\\..\\echoer.bat ";
+        wcscat_s(commandLine, text);
   
         STARTUPINFO startupInfo = { 0 };
         startupInfo.cb         = sizeof(startupInfo);
@@ -355,21 +357,34 @@ Run()
         }
 
         // @todo is this big enough?
-        #define processOutputBuffer_size 500000
-        char processOutputBuffer[processOutputBuffer_size];
+        #define pipeBuffer_size 500000
+        char pipeBuffer[pipeBuffer_size];
+        memset(pipeBuffer, 0, pipeBuffer_size);
+
+        /*
+        // Write to the processes' standard in.
+        {
+            DWORD numBytesWritten = 0;
+            bool success = WriteFile(Child_In_Write, text, wcslen(text), &numBytesWritten, NULL);
+        }
+        */
 
         // @todo someday this should all be done itself on a child process to allow for cancellation.
         // Blocks until the child processes completes.
-        auto waitStatus = WaitForSingleObject(procInfo.hProcess, INFINITE);
+        DWORD waitStatus = WaitForSingleObject(procInfo.hProcess, INFINITE);
+        
         
         DWORD numBytesRead = 0;
-        bool dataIOSuccess = false;
-        dataIOSuccess = ReadFile(Child_Out_Read, processOutputBuffer, processOutputBuffer_size, &numBytesRead, NULL);
+        {
+            bool success = ReadFile(Child_Out_Read, pipeBuffer, pipeBuffer_size, &numBytesRead, NULL);
+        }
 
         
-        HANDLE My_Out = GetStdHandle(STD_OUTPUT_HANDLE);
-        DWORD numBytesWritten = 0;
-        dataIOSuccess = WriteFile(My_Out, processOutputBuffer, numBytesRead, &numBytesWritten, NULL);
+        {
+            HANDLE My_Out = GetStdHandle(STD_OUTPUT_HANDLE);
+            DWORD numBytesWritten = 0;
+            bool success = WriteFile(My_Out, pipeBuffer, numBytesRead, &numBytesWritten, NULL);
+        }
 
 
              
