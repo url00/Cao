@@ -334,61 +334,49 @@ Run()
          
         PROCESS_INFORMATION procInfo = { 0 }; 
     
-        bool success = false;
-        success = CreateProcess(
-            NULL, 
-            commandLine,
-            NULL,          
-            NULL,          
-            true,          
-            0,             
-            NULL,          
-            NULL,          
-            &startupInfo,  
-            &procInfo); 
-
-        if (!success)
         {
-            printf("Could not start child process: %ls", commandLine);
-            goto exit;
-        }
-        else
-        {
-            // Close handles to the child process and its primary thread.
-            // Some applications might keep these handles to monitor the status
-            // of the child process, for example. 
-
-            CloseHandle(procInfo.hProcess);
-            CloseHandle(procInfo.hThread);
+            bool success = CreateProcessW(
+                NULL,
+                commandLine,
+                NULL,
+                NULL,
+                true,
+                0,
+                NULL,
+                NULL,
+                &startupInfo,
+                &procInfo);
+        
+            if (!success)
+            {
+                printf("Could not start child process: %ls", commandLine);
+                goto exit;
+            }
         }
 
+        // @todo is this big enough?
+        #define processOutputBuffer_size 500000
+        char processOutputBuffer[processOutputBuffer_size];
+
+        // @todo someday this should all be done itself on a child process to allow for cancellation.
+        // Blocks until the child processes completes.
+        auto waitStatus = WaitForSingleObject(procInfo.hProcess, INFINITE);
+        
+        DWORD numBytesRead = 0;
+        bool dataIOSuccess = false;
+        dataIOSuccess = ReadFile(Child_Out_Read, processOutputBuffer, processOutputBuffer_size, &numBytesRead, NULL);
 
         
-#define processOutputBuffer_size 4096
-            char processOutputBuffer[processOutputBuffer_size];
-            HANDLE My_Out = GetStdHandle(STD_OUTPUT_HANDLE);
-            DWORD numBytesRead = 0;
-            DWORD numBytesWritten = 0;
-            bool wasNoDataRead = false;
+        HANDLE My_Out = GetStdHandle(STD_OUTPUT_HANDLE);
+        DWORD numBytesWritten = 0;
+        dataIOSuccess = WriteFile(My_Out, processOutputBuffer, numBytesRead, &numBytesWritten, NULL);
 
-            do
-            {
-                wasNoDataRead = ReadFile(Child_Out_Read, processOutputBuffer, processOutputBuffer_size, &numBytesRead, NULL);
-                if (numBytesRead == 0)
-                {
-                    wasNoDataRead = true;
-                }
-            } while (!wasNoDataRead);
 
-            do
-            {
-                wasNoDataRead = WriteFile(My_Out, processOutputBuffer, numBytesRead, &numBytesWritten, NULL);                
-            } while (!wasNoDataRead);
              
         printf("Made it out.");
 
-
-
+        CloseHandle(procInfo.hProcess);
+        CloseHandle(procInfo.hThread);
 
 		GlobalUnlock(textDataHandle);
 	}
