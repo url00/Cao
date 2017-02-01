@@ -259,15 +259,13 @@ Run()
 			goto exit;
 		}
 
-		printf("Text:\n%ls\n\n\n", text);
+		//printf("Text:\n%ls\n\n\n", text);
 
 
 
         // Start of child process creation:
         
         // Create handles for standard IO.
-        HANDLE Child_In_Read   = NULL;
-        HANDLE Child_In_Write  = NULL;
         HANDLE Child_Out_Read  = NULL;
         HANDLE Child_Out_Write = NULL;
 
@@ -302,36 +300,29 @@ Run()
             goto exit;
         }
         
-        
-        callResult =
-            CreatePipe(
-                &Child_In_Read,
-                &Child_In_Write,
-                &secAttr,
-                0);
-        if (!callResult)
-        {
-            // @logging log error.
-            printf("Could not create pipe!\n");
-            goto exit;
-        }
 
-        callResult = SetHandleInformation(Child_In_Write, HANDLE_FLAG_INHERIT, 0);
-        if (!callResult)
-        {
-            // @logging log error.
-            printf("Could not set pipe information!\n");
-            goto exit;
-        }
+        TCHAR tempPath[MAX_PATH];
+        DWORD tempPathLength = GetTempPath(MAX_PATH, tempPath);
+
         
-        wchar_t commandLine[4096] = L"..\\..\\..\\..\\echoer.bat ";
+        printf("Temp file path: %ls\n\n", tempPath);
+
+
+        TCHAR tempFileNameAndPath[MAX_PATH];
+        GetTempFileName(tempPath, L"aaa", 0, tempFileNameAndPath);
+
+
+        printf("Temp file path and name: %ls\n\n", tempFileNameAndPath);
+
+
+
+        wchar_t commandLine[4096] = L"..\\Debug\\Echoer.exe ";
         wcscat_s(commandLine, text);
   
         STARTUPINFO startupInfo = { 0 };
         startupInfo.cb         = sizeof(startupInfo);
         startupInfo.hStdError  = Child_Out_Write;
         startupInfo.hStdOutput = Child_Out_Write;
-        startupInfo.hStdInput  = Child_In_Read;
         startupInfo.dwFlags    = STARTF_USESTDHANDLES;
          
         PROCESS_INFORMATION procInfo = { 0 }; 
@@ -361,14 +352,6 @@ Run()
         char pipeBuffer[pipeBuffer_size];
         memset(pipeBuffer, 0, pipeBuffer_size);
 
-        /*
-        // Write to the processes' standard in.
-        {
-            DWORD numBytesWritten = 0;
-            bool success = WriteFile(Child_In_Write, text, wcslen(text), &numBytesWritten, NULL);
-        }
-        */
-
         // @todo someday this should all be done itself on a child process to allow for cancellation.
         // Blocks until the child processes completes.
         DWORD waitStatus = WaitForSingleObject(procInfo.hProcess, INFINITE);
@@ -388,7 +371,7 @@ Run()
 
 
              
-        printf("Made it out.");
+        printf("\n\n\nMade it out.");
 
         CloseHandle(procInfo.hProcess);
         CloseHandle(procInfo.hThread);
