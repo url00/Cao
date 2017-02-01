@@ -266,6 +266,8 @@ Run()
         // Start of child process creation:
         
         // Create handles for standard IO.
+        HANDLE Child_In_Read   = NULL;
+        HANDLE Child_In_Write  = NULL;
         HANDLE Child_Out_Read  = NULL;
         HANDLE Child_Out_Write = NULL;
 
@@ -351,6 +353,14 @@ Run()
         #define pipeBuffer_size 500000
         char pipeBuffer[pipeBuffer_size];
         memset(pipeBuffer, 0, pipeBuffer_size);
+
+        /*
+        // Write to the processes' standard in.
+        {
+            DWORD numBytesWritten = 0;
+            bool success = WriteFile(Child_In_Write, text, wcslen(text), &numBytesWritten, NULL);
+        }
+        */
 
         // @todo someday this should all be done itself on a child process to allow for cancellation.
         // Blocks until the child processes completes.
