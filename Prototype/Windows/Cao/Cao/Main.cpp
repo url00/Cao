@@ -1,7 +1,7 @@
 // Compile with: /D_UNICODE /DUNICODE /DWIN32 /D_WINDOWS /c  
 #pragma comment(lib, "user32.lib")
 
-#include <windows.h>  
+#include <Windows.h>  
 #include <stdlib.h>  
 #include <string.h>  
 #include <tchar.h>
@@ -277,60 +277,89 @@ Run()
         secAttr.bInheritHandle       = true;
         secAttr.lpSecurityDescriptor = NULL;
 
-        bool callResult = false;
-        callResult =
-            CreatePipe(
-                &Child_Out_Read,
-                &Child_Out_Write,
-                &secAttr,
-                0);
-
-        if (!callResult)
+        // Create and initialize standard in pipe.
         {
-            // @logging log error.
-            printf("Could not create pipe!\n");
-            goto exit;
+            bool createPipeSuccess =
+                CreatePipe(
+                    &Child_In_Read,
+                    &Child_In_Write,
+                    &secAttr,
+                    0);
+            if (!createPipeSuccess)
+            {
+                // @logging log error.
+                printf("Could not create standard in pipe!\n");
+                goto exit;
+            }
+
+            bool setPipeFlagSuccess = SetHandleInformation(Child_In_Write, HANDLE_FLAG_INHERIT, 0);
+            if (!setPipeFlagSuccess)
+            {
+                // @logging log error.
+                printf("Could not set standard in pipe information!\n");
+                goto exit;
+            }
         }
 
-        callResult = SetHandleInformation(Child_Out_Read, HANDLE_FLAG_INHERIT, 0);
-        if (!callResult)
+        
+        // Create and initialize standard out pipe.
         {
-            auto error = GetLastError();
+            bool createPipeSuccess =
+                CreatePipe(
+                    &Child_Out_Read,
+                    &Child_Out_Write,
+                    &secAttr,
+                    0);
+            if (!createPipeSuccess)
+            {
+                // @logging log error.
+                printf("Could not create standard out pipe!\n");
+                goto exit;
+            }
 
-            // @logging log error.
-            printf("Could not set pipe information!\n");
-            goto exit;
+            bool setPipeFlagSuccess = SetHandleInformation(Child_Out_Read, HANDLE_FLAG_INHERIT, 0);
+            if (!setPipeFlagSuccess)
+            {
+                // @logging log error.
+                printf("Could not set standard out pipe information!\n");
+                goto exit;
+            }
         }
         
-
-        TCHAR tempPath[MAX_PATH];
-        DWORD tempPathLength = GetTempPath(MAX_PATH, tempPath);
-
-        
-        printf("Temp file path: %ls\n\n", tempPath);
-
-
+        HANDLE tempFile = 0;
         TCHAR tempFileNameAndPath[MAX_PATH];
-        GetTempFileName(tempPath, L"aaa", 0, tempFileNameAndPath);
+        {
+            TCHAR tempPath[MAX_PATH];
+            DWORD tempPathLength = GetTempPath(MAX_PATH, tempPath);
+        
+            printf("Temp file path: %ls\n\n", tempPath);
 
+            GetTempFileName(tempPath, L"aaa", 0, tempFileNameAndPath);
 
-        printf("Temp file path and name: %ls\n\n", tempFileNameAndPath);
-
-
-
+            printf("Temp file path and name: %ls\n\n", tempFileNameAndPath);
+            // @todo actually open temp file.
+        }
+        
         wchar_t commandLine[4096] = L"..\\Debug\\Echoer.exe ";
+
+        // Add temp file path as the first argument.
+        wcscat_s(commandLine, tempFileNameAndPath);
+        wcscat_s(commandLine, L" ");
+
+        // Add clipboard data for the remaining arguments.
         wcscat_s(commandLine, text);
   
-        STARTUPINFO startupInfo = { 0 };
-        startupInfo.cb         = sizeof(startupInfo);
-        startupInfo.hStdError  = Child_Out_Write;
-        startupInfo.hStdOutput = Child_Out_Write;
-        startupInfo.dwFlags    = STARTF_USESTDHANDLES;
-         
-        PROCESS_INFORMATION procInfo = { 0 }; 
-    
+        // Create the child process.
+        PROCESS_INFORMATION procInfo = { 0 };
         {
-            bool success = CreateProcessW(
+            STARTUPINFO startupInfo = { 0 };
+            startupInfo.cb         = sizeof(startupInfo);
+            startupInfo.hStdInput  = Child_In_Read;
+            startupInfo.hStdError  = Child_Out_Write;
+            startupInfo.hStdOutput = Child_Out_Write;
+            startupInfo.dwFlags    = STARTF_USESTDHANDLES;
+
+            bool createProcessSuccess = CreateProcessW(
                 NULL,
                 commandLine,
                 NULL,
@@ -342,9 +371,9 @@ Run()
                 &startupInfo,
                 &procInfo);
         
-            if (!success)
+            if (!createProcessSuccess)
             {
-                printf("Could not start child process: %ls", commandLine);
+                printf("Could not start child process with command line: %ls", commandLine);
                 goto exit;
             }
         }
@@ -352,34 +381,48 @@ Run()
         // @todo is this big enough?
         #define pipeBuffer_size 500000
         char pipeBuffer[pipeBuffer_size];
-        memset(pipeBuffer, 0, pipeBuffer_size);
+        // @todo memset or just first byte?
+        pipeBuffer[0] = '\0';
+        //memset(pipeBuffer, 0, pipeBuffer_size);
 
-        /*
         // Write to the processes' standard in.
         {
             DWORD numBytesWritten = 0;
-            bool success = WriteFile(Child_In_Write, text, wcslen(text), &numBytesWritten, NULL);
+            bool writeSuccess = WriteFile(Child_In_Write, text, wcslen(text), &numBytesWritten, NULL);
+            if (!writeSuccess)
+            {
+                // @logging log error.
+                printf("Could not write to child's standard in!\n");
+                goto exit;
+            }
         }
-        */
 
         // @todo someday this should all be done itself on a child process to allow for cancellation.
         // Blocks until the child processes completes.
         DWORD waitStatus = WaitForSingleObject(procInfo.hProcess, INFINITE);
         
-        
-        DWORD numBytesRead = 0;
+        // Read from processes' standard out.
         {
-            bool success = ReadFile(Child_Out_Read, pipeBuffer, pipeBuffer_size, &numBytesRead, NULL);
-        }
+            DWORD numBytesRead = 0;
+            bool readSuccess = ReadFile(Child_Out_Read, pipeBuffer, pipeBuffer_size, &numBytesRead, NULL);
+            if (!readSuccess)
+            {
+                // @logging log error.
+                printf("Could not read from child's standard out!\n");
+                goto exit;
+            }
 
         
-        {
             HANDLE My_Out = GetStdHandle(STD_OUTPUT_HANDLE);
             DWORD numBytesWritten = 0;
-            bool success = WriteFile(My_Out, pipeBuffer, numBytesRead, &numBytesWritten, NULL);
+            bool writeSuccess = WriteFile(My_Out, pipeBuffer, numBytesRead, &numBytesWritten, NULL);
+            if (!writeSuccess)
+            {
+                // @logging log error.
+                printf("Could not write to my standard out!\n");
+                goto exit;
+            }
         }
-
-
              
         printf("\n\n\nMade it out.");
 

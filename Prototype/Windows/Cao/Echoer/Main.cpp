@@ -1,16 +1,17 @@
 #include <stdio.h>
-#include <string.h>
+#include <string>
+#include <Windows.h>
+#include <iostream>
 
 int main(int argc, char *argv[])
 {
-    printf("\n\n---------- Echoer\n");
-
-    printf("argc: %d\n", argc);
-    printf("text:\n");
-
-    printf("some change\n");
-
     //__debugbreak();
+
+    printf("\n\n\n----------- Echoer ----------\n\n\n");
+
+    printf("via passed arguments:\n");
+    printf("argc: %d\n", argc);
+    printf("argv[1..n]: ");
 
     for (int i = 1; i < argc; i++)
     {
@@ -23,4 +24,11 @@ int main(int argc, char *argv[])
         }
         printf(buffer);
     }
+
+    printf("\n\n\n====================\n\n\n");
+
+    printf("via stdin:\n");
+
+
+    printf("\n\n\n---------- End of Echoer ----------\n\n\n");
 }
