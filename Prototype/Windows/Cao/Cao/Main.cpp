@@ -171,7 +171,7 @@ WinMain(
 
 
 	// Set up global hook:
-	KeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, Instance, NULL);
+	//KeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, Instance, NULL);
 
 
 
@@ -324,6 +324,19 @@ Run()
                 printf("Could not set standard out pipe information!\n");
                 goto exit;
             }
+        }       
+
+        // Write to the processes' standard in.
+        {
+            DWORD bytesWritten = 0;
+            bool writeSuccess = WriteFile(Child_In_Write, text, wcslen(text), &bytesWritten, NULL);
+            printf("bytes written: %d\n", bytesWritten);
+            if (!writeSuccess)
+            {
+                // @logging log error.
+                printf("Could not write to child's standard in!\n");
+                goto exit;
+            }
         }
         
         HANDLE tempFile = 0;
@@ -369,8 +382,7 @@ Run()
                 NULL,
                 NULL,
                 &startupInfo,
-                &procInfo);
-        
+                &procInfo);        
             if (!createProcessSuccess)
             {
                 printf("Could not start child process with command line: %ls", commandLine);
@@ -384,18 +396,6 @@ Run()
         // @todo memset or just first byte?
         pipeBuffer[0] = '\0';
         //memset(pipeBuffer, 0, pipeBuffer_size);
-
-        // Write to the processes' standard in.
-        {
-            DWORD numBytesWritten = 0;
-            bool writeSuccess = WriteFile(Child_In_Write, text, wcslen(text), &numBytesWritten, NULL);
-            if (!writeSuccess)
-            {
-                // @logging log error.
-                printf("Could not write to child's standard in!\n");
-                goto exit;
-            }
-        }
 
         // @todo someday this should all be done itself on a child process to allow for cancellation.
         // Blocks until the child processes completes.

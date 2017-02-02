@@ -7,7 +7,11 @@ int main(int argc, char *argv[])
 {
     //__debugbreak();
 
+
+
     printf("\n\n\n----------- Echoer ----------\n\n\n");
+
+
 
     printf("via passed arguments:\n");
     printf("argc: %d\n", argc);
@@ -25,9 +29,30 @@ int main(int argc, char *argv[])
         printf(buffer);
     }
 
+
+
     printf("\n\n\n====================\n\n\n");
 
+
+
     printf("via stdin:\n");
+
+    {
+        #define readBuffer_size 300000
+        wchar_t readBuffer[readBuffer_size];
+        readBuffer[0] = '\0';
+        DWORD bytesRead = 0;
+        bool readSuccess = ReadFile(GetStdHandle(STD_INPUT_HANDLE), readBuffer, readBuffer_size, &bytesRead, NULL);
+        printf("bytes read: %d\n", bytesRead);
+        if (!readSuccess)
+        {
+            printf("Could not read from standard in!\n");
+        }
+
+        //std::string result(readBuffer);
+        printf("%ls", readBuffer);
+    }
+
 
 
     printf("\n\n\n---------- End of Echoer ----------\n\n\n");
