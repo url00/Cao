@@ -2,6 +2,7 @@
 #include <string>
 #include <Windows.h>
 #include <iostream>
+#include <sstream>
 
 int main(int argc, char *argv[])
 {
@@ -38,9 +39,8 @@ int main(int argc, char *argv[])
     printf("via stdin:\n");
 
     {
-        #define readBuffer_size 300000
+        const int readBuffer_size = 300000;
         wchar_t readBuffer[readBuffer_size];
-        readBuffer[0] = '\0';
         DWORD bytesRead = 0;
         bool readSuccess = ReadFile(GetStdHandle(STD_INPUT_HANDLE), readBuffer, readBuffer_size, &bytesRead, NULL);
         printf("bytes read: %d\n", bytesRead);
@@ -49,7 +49,6 @@ int main(int argc, char *argv[])
             printf("Could not read from standard in!\n");
         }
 
-        //std::string result(readBuffer);
         printf("%ls", readBuffer);
     }
 

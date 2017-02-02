@@ -329,7 +329,8 @@ Run()
         // Write to the processes' standard in.
         {
             DWORD bytesWritten = 0;
-            bool writeSuccess = WriteFile(Child_In_Write, text, wcslen(text), &bytesWritten, NULL);
+            bool writeSuccess = WriteFile(Child_In_Write, text, wcslen(text) * 4, &bytesWritten, NULL);
+            // @release remove debug message
             printf("bytes written: %d\n", bytesWritten);
             if (!writeSuccess)
             {
@@ -391,11 +392,8 @@ Run()
         }
 
         // @todo is this big enough?
-        #define pipeBuffer_size 500000
+        const int pipeBuffer_size = 500000;
         char pipeBuffer[pipeBuffer_size];
-        // @todo memset or just first byte?
-        pipeBuffer[0] = '\0';
-        //memset(pipeBuffer, 0, pipeBuffer_size);
 
         // @todo someday this should all be done itself on a child process to allow for cancellation.
         // Blocks until the child processes completes.
