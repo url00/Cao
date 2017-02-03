@@ -6,7 +6,7 @@
 
 int main(int argc, char *argv[])
 {
-    //__debugbreak();
+    __debugbreak();
 
 
 
@@ -49,6 +49,39 @@ int main(int argc, char *argv[])
             printf("Could not read from standard in!\n");
         }
 
+        printf("%ls", readBuffer);
+    }
+
+
+
+    printf("\n\n\n====================\n\n\n");
+
+
+
+    printf("via temp file:\n");
+
+    {
+        const int readBuffer_size = 300000;
+        wchar_t readBuffer[readBuffer_size];
+        DWORD bytesRead = 0;
+
+        HANDLE tempFile =
+            CreateFile(
+                argv[1],
+                GENERIC_READ,
+                0,
+                NULL,
+                OPEN_EXISTING, 
+                FILE_ATTRIBUTE_NORMAL,
+                NULL); 
+        bool readSuccess = ReadFile(tempFile, readBuffer, readBuffer_size, &bytesRead, NULL);
+        printf("bytes read: %d\n", bytesRead);
+        if (!readSuccess)
+        {
+            printf("Could not read from temp file!\n");
+        }
+
+        CloseHandle(tempFile);
         printf("%ls", readBuffer);
     }
 

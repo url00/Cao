@@ -289,6 +289,7 @@ Run()
             {
                 // @logging log error.
                 printf("Could not create standard in pipe!\n");
+                // @leak goto exit leaves handles open
                 goto exit;
             }
 
@@ -297,6 +298,7 @@ Run()
             {
                 // @logging log error.
                 printf("Could not set standard in pipe information!\n");
+                // @leak goto exit leaves handles open
                 goto exit;
             }
         }
@@ -314,6 +316,7 @@ Run()
             {
                 // @logging log error.
                 printf("Could not create standard out pipe!\n");
+                // @leak goto exit leaves handles open
                 goto exit;
             }
 
@@ -322,6 +325,7 @@ Run()
             {
                 // @logging log error.
                 printf("Could not set standard out pipe information!\n");
+                // @leak goto exit leaves handles open
                 goto exit;
             }
         }       
@@ -336,22 +340,45 @@ Run()
             {
                 // @logging log error.
                 printf("Could not write to child's standard in!\n");
+                // @leak goto exit leaves handles open
                 goto exit;
             }
         }
         
-        HANDLE tempFile = 0;
-        TCHAR tempFileNameAndPath[MAX_PATH];
+        wchar_t tempFileNameAndPath[MAX_PATH];
         {
             TCHAR tempPath[MAX_PATH];
             DWORD tempPathLength = GetTempPath(MAX_PATH, tempPath);
         
             printf("Temp file path: %ls\n\n", tempPath);
-
+            // GetTempFileName CREATES A FILE IF IT SUCCEEDS. WHY?!?!?!
             GetTempFileName(tempPath, L"aaa", 0, tempFileNameAndPath);
-
             printf("Temp file path and name: %ls\n\n", tempFileNameAndPath);
-            // @todo actually open temp file.
+
+            char openFileName[MAX_PATH];
+            HANDLE tempFile =
+                CreateFile(
+                    tempFileNameAndPath,
+                    GENERIC_WRITE,
+                    0,
+                    NULL,
+                    OPEN_EXISTING, 
+                    FILE_ATTRIBUTE_NORMAL,
+                    NULL); 
+            
+            // @bug seems like we are writting too many bytes.
+            DWORD bytesWritten = 0;
+            bool writeSuccess = WriteFile(tempFile, text, wcslen(text) * 4, &bytesWritten, NULL);
+            if (!writeSuccess)
+            {
+                // @logging log error.
+                printf("Could not write to temp file!\n");
+                // @leak goto exit leaves handles open
+                goto exit;
+            }
+
+            
+            CloseHandle(tempFile);
         }
         
         wchar_t commandLine[4096] = L"..\\Debug\\Echoer.exe ";
@@ -387,6 +414,7 @@ Run()
             if (!createProcessSuccess)
             {
                 printf("Could not start child process with command line: %ls", commandLine);
+                // @leak goto exit leaves handles open
                 goto exit;
             }
         }
@@ -407,6 +435,7 @@ Run()
             {
                 // @logging log error.
                 printf("Could not read from child's standard out!\n");
+                // @leak goto exit leaves handles open
                 goto exit;
             }
 
@@ -418,6 +447,7 @@ Run()
             {
                 // @logging log error.
                 printf("Could not write to my standard out!\n");
+                // @leak goto exit leaves handles open
                 goto exit;
             }
         }
