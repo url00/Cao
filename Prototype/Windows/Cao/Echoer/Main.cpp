@@ -2,11 +2,10 @@
 #include <string>
 #include <Windows.h>
 #include <iostream>
-#include <sstream>
 
 int main(int argc, char *argv[])
 {
-    __debugbreak();
+    //__debugbreak();
 
 
 
@@ -16,54 +15,53 @@ int main(int argc, char *argv[])
 
     printf("via passed arguments:\n");
     printf("argc: %d\n", argc);
-    printf("argv[1..n]: ");
+    printf("argv[1..n]:\n");
 
     for (int i = 1; i < argc; i++)
     {
         char buffer[4096];
         buffer[0] = '\0';
         strcat(buffer, argv[i]);
-        if (i + 1 < argc)
-        {
-            strcat(buffer, " ");
-        }
-        printf(buffer);
+        printf("%s\n", buffer);
     }
 
 
-
+    
+    
     printf("\n\n\n====================\n\n\n");
 
 
 
     printf("via stdin:\n");
-
     {
         const int readBuffer_size = 300000;
-        wchar_t readBuffer[readBuffer_size];
+        wchar_t *readBuffer = new wchar_t[readBuffer_size];
         DWORD bytesRead = 0;
-        bool readSuccess = ReadFile(GetStdHandle(STD_INPUT_HANDLE), readBuffer, readBuffer_size, &bytesRead, NULL);
+        
+        HANDLE standardIn = GetStdHandle(STD_INPUT_HANDLE);
+        bool readSuccess = ReadFile(standardIn, readBuffer, readBuffer_size, &bytesRead, NULL);
         printf("bytes read: %d\n", bytesRead);
         if (!readSuccess)
         {
             printf("Could not read from standard in!\n");
         }
 
+        CloseHandle(standardIn);
+
         printf("%ls", readBuffer);
     }
+    
 
-
-
+    
     printf("\n\n\n====================\n\n\n");
 
 
 
     printf("via temp file:\n");
-
     {
         const int readBuffer_size = 300000;
-        wchar_t readBuffer[readBuffer_size];
-        DWORD bytesRead = 0;
+        wchar_t *readBuffer = new wchar_t[readBuffer_size];
+        DWORD bytesRead = 0;        
 
         HANDLE tempFile =
             CreateFile(
@@ -73,7 +71,7 @@ int main(int argc, char *argv[])
                 NULL,
                 OPEN_EXISTING, 
                 FILE_ATTRIBUTE_NORMAL,
-                NULL); 
+                NULL);
         bool readSuccess = ReadFile(tempFile, readBuffer, readBuffer_size, &bytesRead, NULL);
         printf("bytes read: %d\n", bytesRead);
         if (!readSuccess)
@@ -84,6 +82,7 @@ int main(int argc, char *argv[])
         CloseHandle(tempFile);
         printf("%ls", readBuffer);
     }
+    
 
 
 

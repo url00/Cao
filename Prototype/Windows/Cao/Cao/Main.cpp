@@ -58,7 +58,7 @@ WinMain(
 
 	// Set up applicaion:
 	WNDCLASSEX WindowClass    = { 0 };
-	WindowClass.cbSize	       = sizeof(WNDCLASSEX);
+	WindowClass.cbSize	      = sizeof(WNDCLASSEX);
 	WindowClass.style         = CS_HREDRAW | CS_VREDRAW;
 	WindowClass.lpfnWndProc   = WndProc;
 	WindowClass.cbClsExtra    = 0;
@@ -174,6 +174,14 @@ WinMain(
 	//KeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, Instance, NULL);
 
 
+    
+
+    int i = 7;
+    auto foo = [&]() {
+        std::cout << "i: " << i << std::endl;
+    };
+    foo();
+
 
 	// Main message loop:  
 	MSG msg;
@@ -182,6 +190,11 @@ WinMain(
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
+
+
+
+
+
 
 	return (int)msg.wParam;
 }
@@ -333,7 +346,7 @@ Run()
         // Write to the processes' standard in.
         {
             DWORD bytesWritten = 0;
-            bool writeSuccess = WriteFile(Child_In_Write, text, wcslen(text) * 4, &bytesWritten, NULL);
+            bool writeSuccess = WriteFile(Child_In_Write, text, wcslen(text) * 2, &bytesWritten, NULL);
             // @release remove debug message
             printf("bytes written: %d\n", bytesWritten);
             if (!writeSuccess)
@@ -368,7 +381,7 @@ Run()
             
             // @bug seems like we are writting too many bytes.
             DWORD bytesWritten = 0;
-            bool writeSuccess = WriteFile(tempFile, text, wcslen(text) * 4, &bytesWritten, NULL);
+            bool writeSuccess = WriteFile(tempFile, text, wcslen(text) * 2, &bytesWritten, NULL);
             if (!writeSuccess)
             {
                 // @logging log error.
