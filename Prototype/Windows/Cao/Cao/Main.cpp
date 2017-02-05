@@ -19,6 +19,10 @@
 
 // Global data:
 static const wchar_t *Title = L"Cao";
+static HWND MyWindow = NULL;
+static HHOOK KeyboardHook;
+
+
 
 static const UINT IconMessage = WM_APP + 9;
 static NOTIFYICONDATA IconData = { 0 };
@@ -27,9 +31,17 @@ static const UINT __IconMenu_MessageIdStart = 1337;
 static const UINT IconMenu_Run = __IconMenu_MessageIdStart + 0;
 static const UINT IconMenu_Exit = __IconMenu_MessageIdStart + 1;
 
-static HWND MyWindow = NULL;
 
-static HHOOK KeyboardHook;
+
+static bool isProcessRunning = false;
+
+
+static HANDLE Child_In_Read   = NULL;
+static HANDLE Child_In_Write  = NULL;
+static HANDLE Child_Out_Read  = NULL;
+static HANDLE Child_Out_Write = NULL;
+
+static PROCESS_INFORMATION procInfo = { 0 };
 
 
 
@@ -175,14 +187,6 @@ WinMain(
 
 
     
-
-    int i = 7;
-    auto foo = [&]() {
-        std::cout << "i: " << i << std::endl;
-    };
-    foo();
-
-
 	// Main message loop:  
 	MSG msg;
 	while (GetMessage(&msg, NULL, 0, 0))
@@ -190,8 +194,6 @@ WinMain(
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
-
-
 
 
 
@@ -272,17 +274,11 @@ Run()
 			goto exit;
 		}
 
-		//printf("Text:\n%ls\n\n\n", text);
-
 
 
         // Start of child process creation:
         
         // Create handles for standard IO.
-        HANDLE Child_In_Read   = NULL;
-        HANDLE Child_In_Write  = NULL;
-        HANDLE Child_Out_Read  = NULL;
-        HANDLE Child_Out_Write = NULL;
 
 
         SECURITY_ATTRIBUTES secAttr;
@@ -404,7 +400,6 @@ Run()
         wcscat_s(commandLine, text);
   
         // Create the child process.
-        PROCESS_INFORMATION procInfo = { 0 };
         {
             STARTUPINFO startupInfo = { 0 };
             startupInfo.cb         = sizeof(startupInfo);
@@ -430,45 +425,12 @@ Run()
                 // @leak goto exit leaves handles open
                 goto exit;
             }
+
+            isProcessRunning = true;
+
+            HANDLE newHandle;
+            RegisterWaitForSingleObject(&newHandle, procInfo.hProcess, LaunchedProcessExited, NULL, INFINITE, WT_EXECUTEONLYONCE);
         }
-
-        // @todo is this big enough?
-        const int pipeBuffer_size = 500000;
-        char pipeBuffer[pipeBuffer_size];
-
-        // @todo someday this should all be done itself on a child process to allow for cancellation.
-        // Blocks until the child processes completes.
-        DWORD waitStatus = WaitForSingleObject(procInfo.hProcess, INFINITE);
-        
-        // Read from processes' standard out.
-        {
-            DWORD numBytesRead = 0;
-            bool readSuccess = ReadFile(Child_Out_Read, pipeBuffer, pipeBuffer_size, &numBytesRead, NULL);
-            if (!readSuccess)
-            {
-                // @logging log error.
-                printf("Could not read from child's standard out!\n");
-                // @leak goto exit leaves handles open
-                goto exit;
-            }
-
-        
-            HANDLE My_Out = GetStdHandle(STD_OUTPUT_HANDLE);
-            DWORD numBytesWritten = 0;
-            bool writeSuccess = WriteFile(My_Out, pipeBuffer, numBytesRead, &numBytesWritten, NULL);
-            if (!writeSuccess)
-            {
-                // @logging log error.
-                printf("Could not write to my standard out!\n");
-                // @leak goto exit leaves handles open
-                goto exit;
-            }
-        }
-             
-        printf("\n\n\nMade it out.");
-
-        CloseHandle(procInfo.hProcess);
-        CloseHandle(procInfo.hThread);
 
 		GlobalUnlock(textDataHandle);
 	}
@@ -642,4 +604,47 @@ ConsoleCtrlHandler(
     }
 
     return false; 
+}
+
+VOID CALLBACK
+LaunchedProcessExited(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
+{
+    isProcessRunning = false;
+    printf("\n\n\nProcess exited.\n");
+    // @todo is this big enough?
+    const int pipeBuffer_size = 500000;
+    char pipeBuffer[pipeBuffer_size];
+            
+    // Read from processes' standard out.
+    {
+        DWORD numBytesRead = 0;
+        bool readSuccess = ReadFile(Child_Out_Read, pipeBuffer, pipeBuffer_size, &numBytesRead, NULL);
+        if (!readSuccess)
+        {
+            // @logging log error.
+            printf("Could not read from child's standard out!\n");
+            // @leak goto exit leaves handles open
+            goto exit;
+        }
+
+        
+        HANDLE My_Out = GetStdHandle(STD_OUTPUT_HANDLE);
+        DWORD numBytesWritten = 0;
+        bool writeSuccess = WriteFile(My_Out, pipeBuffer, numBytesRead, &numBytesWritten, NULL);
+        if (!writeSuccess)
+        {
+            // @logging log error.
+            printf("Could not write to my standard out!\n");
+            // @leak goto exit leaves handles open
+            goto exit;
+        }
+    }
+             
+    printf("Back to normal.");
+
+exit:
+    CloseHandle(procInfo.hProcess);
+    CloseHandle(procInfo.hThread);
+
+    procInfo = { 0 };
 }

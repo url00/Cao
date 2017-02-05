@@ -20,6 +20,12 @@ ConsoleCtrlHandler(
     DWORD controlType
 );
 
+VOID CALLBACK 
+LaunchedProcessExited(
+    PVOID lpParameter,
+    BOOLEAN TimerOrWaitFired
+);
+
 // For debug console.
 class OutBuffer : public std::streambuf
 {
