@@ -48,8 +48,7 @@ static PROCESS_INFORMATION ChildProcInfo = { 0 };
 
 static const wchar_t *configFilename = L"config.txt";
 static ConfigFile LoadedConfigFile = { 0 };
-static const int command_size = 255;
-static wchar_t command[command_size];
+static int currentConfigIndex = 1;
 
 
 
@@ -148,11 +147,6 @@ WinMain(
     OutBuffer Buffer;
     std::streambuf *sb = std::cout.rdbuf(&Buffer);
     std::cout.rdbuf(sb);
-
-
-    
-    // Initialize global data.
-    memcpy_s(command, command_size, L"..\\Debug\\Echoer.exe", wcsnlen_s(L"..\\Debug\\Echoer.exe", 500) * 2);
     
 
 
@@ -541,7 +535,7 @@ RunCancel()
         //wchar_t commandLine[commandLine_size] = L"..\\Debug\\Echoer.exe ";
 
         // Add command as zeroith argument.
-        wcscat_s(commandLine, command);
+        wcscat_s(commandLine, LoadedConfigFile.Configs[currentConfigIndex].command);
         wcscat_s(commandLine, L" ");
 
         // Add temp file path as the first argument.
