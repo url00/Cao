@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 
     printf("\n\n\nStarting sleep.\n");
 
-    Sleep(5000);
+    Sleep(1000);
 
     printf("Ending sleep.\n");
 

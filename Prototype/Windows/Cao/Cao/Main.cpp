@@ -280,7 +280,7 @@ RunCancel()
 {
     if (isChildRunning)
     {
-        printf("Process still running! Attempting to stop...\n");
+        printf("Child still running! Attempting to stop...\n");
         wasChildCancelled = true;
         TerminateChild();
         return;
@@ -294,6 +294,8 @@ RunCancel()
 	if (!OpenClipboard(MyWindow))
 	{
 		// On failure, give up;
+        // @log err.
+        printf("Couldn't open the clipboard!\n");
 		return;
 	}
 
@@ -704,10 +706,41 @@ LaunchedProcessExitedOrCancelled(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
             printf("Could not write to my standard out!\n");
             goto pipeBuffer_cleanup;
         }
+
+        // Write to global memory for clipboard.        
+        HANDLE clipboardMemory = GlobalAlloc(GMEM_MOVEABLE, numBytesRead);
+        if (clipboardMemory == NULL)
+        {
+            // @logging log error.
+            printf("Couldn't allocate global memory! Size:%d\n", numBytesRead);
+            goto pipeBuffer_cleanup;
+        }
+
+        HANDLE writeableClipboardMemory = GlobalLock(clipboardMemory);
+        memcpy_s(writeableClipboardMemory, numBytesRead, pipeBuffer, numBytesRead);
+        GlobalUnlock(writeableClipboardMemory);
+        
+        printf("Attempting to open clipboard...\n");
+    
+	    if (!OpenClipboard(MyWindow))
+	    {
+		    // On failure, give up;
+            // @log err.
+            printf("Couldn't open the clipboard!\n");
+		    goto pipeBuffer_cleanup;
+	    }
+
+        EmptyClipboard();
+        SetClipboardData(CF_TEXT, clipboardMemory);        
+        printf("Wrote to the clipboard!\n");
     }
     
     printf("Back to normal.\n");
 
+
+
+clipboard_cleanup:
+    CloseClipboard();
 pipeBuffer_cleanup:    
     delete[] pipeBuffer;
 child_cleanup:
