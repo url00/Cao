@@ -4,7 +4,10 @@ void
 CleanupStuff();
 
 void
-Run();
+CleanupProcessStuff();
+
+void
+RunCancel();
 
 LRESULT CALLBACK
 KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam);

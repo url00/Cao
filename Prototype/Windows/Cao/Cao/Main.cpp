@@ -1,9 +1,9 @@
 // Compile with: /D_UNICODE /DUNICODE /DWIN32 /D_WINDOWS /c  
 #pragma comment(lib, "user32.lib")
 
-#include <Windows.h>  
-#include <stdlib.h>  
-#include <string.h>  
+#include <Windows.h>
+#include <stdlib.h>
+#include <string.h>
 #include <tchar.h>
 #include <strsafe.h>
 #include <io.h>
@@ -28,20 +28,22 @@ static const UINT IconMessage = WM_APP + 9;
 static NOTIFYICONDATA IconData = { 0 };
 static HMENU IconMenu;
 static const UINT __IconMenu_MessageIdStart = 1337;
-static const UINT IconMenu_Run = __IconMenu_MessageIdStart + 0;
-static const UINT IconMenu_Exit = __IconMenu_MessageIdStart + 1;
+static const UINT IconMenu_RunCancel  = __IconMenu_MessageIdStart + 0;
+static const UINT IconMenu_Exit       = __IconMenu_MessageIdStart + 1;
 
 
 
 static bool isProcessRunning = false;
-
-
 static HANDLE Child_In_Read   = NULL;
 static HANDLE Child_In_Write  = NULL;
 static HANDLE Child_Out_Read  = NULL;
 static HANDLE Child_Out_Write = NULL;
-
 static PROCESS_INFORMATION procInfo = { 0 };
+
+
+
+static HANDLE My_Out = NULL;
+
 
 
 
@@ -54,13 +56,22 @@ WinMain(
 )
 {
 	// Set up and display console for debugging:
-	if (AllocConsole()) {
+	if (AllocConsole())
+    {        
+        // Set up handle to my standard out. The console needs to exist for the handle to return valid.
+        My_Out = GetStdHandle(STD_OUTPUT_HANDLE);
+
 		FILE *cout;
 		freopen_s(&cout, "CONOUT$", "w", stdout);
 		SetConsoleTitle(Title);
-		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
+		SetConsoleTextAttribute(My_Out, FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
         SetConsoleCtrlHandler(ConsoleCtrlHandler, true);
 	}
+    else
+    {
+        // @log error, could not initialize console
+        return EXIT_FAILURE;
+    }
 
 	OutBuffer Buffer;
 	std::streambuf *sb = std::cout.rdbuf(&Buffer);
@@ -119,7 +130,7 @@ WinMain(
 		return 1;
 	}
 
-	// TODO: Only show window on click or keyboard shortcut.
+	// @todo only show window on click or keyboard shortcut.
 	//ShowWindow(MyWindow, nCmdShow);
 	UpdateWindow(MyWindow);
 
@@ -130,12 +141,11 @@ WinMain(
 
 
 	
-
     // Set up tray icon menu:
     IconMenu = CreatePopupMenu();
-    AppendMenu(IconMenu, MF_STRING, IconMenu_Run,  L"Run");
-    AppendMenu(IconMenu, MF_SEPARATOR, 0,  NULL);
-    AppendMenu(IconMenu, MF_STRING, IconMenu_Exit,  L"Exit");
+    AppendMenu(IconMenu, MF_STRING,    IconMenu_RunCancel, L"Run");
+    AppendMenu(IconMenu, MF_SEPARATOR, 0,                  NULL);
+    AppendMenu(IconMenu, MF_STRING,    IconMenu_Exit,      L"Exit");
 
 
 
@@ -169,14 +179,14 @@ WinMain(
         wasIconCreated = Shell_NotifyIcon(NIM_ADD, &IconData);
         if (!wasIconCreated)
         {
-            // @Logging Log unable to start, couldn't create shell.
+            // @log unable to start, couldn't create shell icon.
             MessageBox(
                 MyWindow,
                 L"Call to Shell_NotifyIcon failed!",
                 Title,
                 NULL);
 
-            return 1;
+            return EXIT_FAILURE;
         }
 	}
 
@@ -194,8 +204,7 @@ WinMain(
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
-
-
+    
 
 
 	return (int)msg.wParam;
@@ -206,10 +215,66 @@ CleanupStuff()
 {
     UnhookWindowsHookEx(KeyboardHook);
     Shell_NotifyIcon(NIM_DELETE, &IconData);
+    CleanupProcessStuff();
+
+    if (My_Out != NULL || My_Out == INVALID_HANDLE_VALUE)
+    {
+        if(!CloseHandle(My_Out))
+        {
+            printf("Couldn't close My_Out!\n");
+        }
+    }
 }
 
 void
-Run()
+CleanupProcessStuff()
+{
+    if (procInfo.hProcess != NULL)
+    {
+        if(TerminateProcess(procInfo.hProcess, 0))
+        {
+            Child_In_Read   = NULL;
+            Child_In_Write  = NULL;
+            Child_Out_Read  = NULL;
+            Child_Out_Write = NULL;
+        }
+    }
+
+    if (Child_In_Read != NULL && Child_In_Read != INVALID_HANDLE_VALUE)
+    {
+        if(!CloseHandle(Child_In_Read))
+        {
+            printf("Couldn't close Child_In_Read!\n");
+        }
+    }
+
+    if (Child_In_Write != NULL && Child_In_Write != INVALID_HANDLE_VALUE)
+    {
+        if(!CloseHandle(Child_In_Write))
+        {
+            printf("Couldn't close Child_In_Write!\n");
+        }
+    }
+
+    if (Child_Out_Read != NULL && Child_Out_Read != INVALID_HANDLE_VALUE)
+    {
+        if(!CloseHandle(Child_Out_Read))
+        {
+            printf("Couldn't close Child_Out_Read!\n");
+        }
+    }
+
+    if (Child_Out_Write != NULL && Child_Out_Write != INVALID_HANDLE_VALUE)
+    {
+        if(!CloseHandle(Child_Out_Write))
+        {
+            printf("Couldn't close Child_Out_Write!\n");
+        }
+    }
+}
+
+void
+RunCancel()
 {
     if (isProcessRunning)
     {
@@ -441,7 +506,7 @@ Run()
             }
 
             isProcessRunning = true;
-            ModifyMenu(IconMenu, IconMenu_Run, MF_BYCOMMAND, IconMenu_Run, L"Cancel");
+            ModifyMenu(IconMenu, IconMenu_RunCancel, MF_BYCOMMAND, IconMenu_RunCancel, L"Cancel");
 
             HANDLE newHandle;
             RegisterWaitForSingleObject(&newHandle, procInfo.hProcess, LaunchedProcessExited, NULL, INFINITE, WT_EXECUTEONLYONCE);
@@ -491,7 +556,7 @@ KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
 			}
 			else if (CTRL_key != 0 && key == 'e')
 			{
-                Run();
+                RunCancel();
 			}
 		}
 	}
@@ -534,14 +599,11 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
                 case WM_LBUTTONDBLCLK:
                 {
                     //ShowWindow(hWnd, SW_RESTORE);
-                    printf("Left clicked!\n");
                     break;
                 }
 
                 case WM_RBUTTONDOWN:
                 {
-                    printf("Right clicked!\n");
-
                     POINT CursorPoint;
                     GetCursorPos(&CursorPoint);
 
@@ -560,19 +622,13 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
                     {
                         case IconMenu_Exit:
                         {
-                            printf("Exit clicked!\n");
                             DestroyWindow(Window);
                             break;
                         }
-                        case IconMenu_Run:
+
+                        case IconMenu_RunCancel:
                         {
-                            printf("Run clicked!\n");
-                            Run();
-                            break;
-                        }
-                        default:
-                        {
-                            printf("No idea: %d", clicked);
+                            RunCancel();
                             break;
                         }
                     }
@@ -625,45 +681,40 @@ VOID CALLBACK
 LaunchedProcessExited(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
 {
     isProcessRunning = false;
-    ModifyMenu(IconMenu, IconMenu_Run, MF_BYCOMMAND, IconMenu_Run, L"Run");
+    ModifyMenu(IconMenu, IconMenu_RunCancel, MF_BYCOMMAND, IconMenu_RunCancel, L"Run");
 
     printf("\n\n\nProcess exited.\n");
     // @todo is this big enough?
     const int pipeBuffer_size = 500000;
     char *pipeBuffer = new char[pipeBuffer_size];
             
-    // Read from processes' standard out.
     {
+        // Read from processes' standard out.
         DWORD numBytesRead = 0;
         bool readSuccess = ReadFile(Child_Out_Read, pipeBuffer, pipeBuffer_size, &numBytesRead, NULL);
         if (!readSuccess)
         {
             // @logging log error.
             printf("Could not read from child's standard out!\n");
-            // @leak goto exit leaves handles open
-            goto exit;
+            goto readFailure;
         }
 
-        
-        HANDLE My_Out = GetStdHandle(STD_OUTPUT_HANDLE);
+        // Write to my standard out.
         DWORD numBytesWritten = 0;
         bool writeSuccess = WriteFile(My_Out, pipeBuffer, numBytesRead, &numBytesWritten, NULL);
         if (!writeSuccess)
         {
             // @logging log error.
             printf("Could not write to my standard out!\n");
-            // @leak goto exit leaves handles open
-            goto exit;
+            goto writeFailure;
         }
     }
     
     printf("Back to normal.");
 
-exit:
-    CloseHandle(procInfo.hProcess);
-    CloseHandle(procInfo.hThread);
-
+writeFailure:
+readFailure:
+    CleanupProcessStuff();
     procInfo = { 0 };
-
     delete[] pipeBuffer;
 }
