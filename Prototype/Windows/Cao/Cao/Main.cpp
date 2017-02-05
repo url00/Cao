@@ -214,12 +214,13 @@ WinMain(
 
 
     // Set up window.
+    // @todo get current screen size to put window in center
     MyWindow = CreateWindow(
         WindowClass.lpszClassName,
         TITLE,
         WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT,
-        500, 100,
+        490, 500,
+        1000, 1,
         NULL,
         NULL,
         Instance,
@@ -236,6 +237,21 @@ WinMain(
 
         return EXIT_FAILURE;
     }
+
+    // Set the window's styles.
+    // @todo use CreateWindowEx instead of manually setting the styles after creation.
+    {
+        LONG normalStyles = GetWindowLong(MyWindow, GWL_STYLE);
+        normalStyles &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU);
+        SetWindowLongPtr(MyWindow, GWL_STYLE, normalStyles);
+
+        LONG extendedStyles = GetWindowLong(MyWindow, GWL_EXSTYLE);
+        extendedStyles &= ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE | WS_EX_TOPMOST);
+        SetWindowLongPtr(MyWindow, GWL_EXSTYLE, extendedStyles);
+    }
+
+    SetWindowPos(MyWindow, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+
 
     // @todo only show window on click or keyboard shortcut.
     //ShowWindow(MyWindow, nCmdShow);
@@ -315,8 +331,8 @@ WinMain(
             WC_COMBOBOX,
             L"",
             CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
-            10, 10, 
-            200, 60, 
+            0, 0, 
+            1000, 60, 
             MyWindow,
             NULL,
             Instance,
