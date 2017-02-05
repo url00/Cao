@@ -1,2 +1,3 @@
 ﻿"echoer":"..\Debug\Echoer.exe"
 "cat":"myCat.bat"
+"linenums":"linenums.bat"

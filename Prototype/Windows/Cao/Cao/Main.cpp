@@ -48,7 +48,7 @@ static PROCESS_INFORMATION ChildProcInfo = { 0 };
 
 static const wchar_t *configFilename = L"config.txt";
 static ConfigFile LoadedConfigFile = { 0 };
-static int currentConfigIndex = 1;
+static int currentConfigIndex = 2;
 
 
 
@@ -80,6 +80,7 @@ LoadConfigFile()
     int currentCommandIndex = 0;
     char *readCharDest = LoadedConfigFile.Configs[currentCommandIndex].name;
     bool readingName = true;
+    // @hack assumes utf8 for config file.
     for (int i = 3; i < bytesRead; i++)
     {
         char currentChar = readBuffer[i];
@@ -100,7 +101,14 @@ LoadConfigFile()
         }
         else if (currentChar == '\r')
         {
+            // Skip the newline character for \r\n endings.
             i++;
+            currentCommandIndex++;
+            LoadedConfigFile.configCount++;
+            readingName = true;
+        }
+        else if (currentChar == '\n')
+        {
             currentCommandIndex++;
             LoadedConfigFile.configCount++;
             readingName = true;
