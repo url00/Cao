@@ -40,7 +40,6 @@ int main(int argc, char *argv[])
         
         HANDLE standardIn = GetStdHandle(STD_INPUT_HANDLE);
         bool readSuccess = ReadFile(standardIn, readBuffer, readBuffer_size, &bytesRead, NULL);
-        printf("bytes read: %d\n", bytesRead);
         if (!readSuccess)
         {
             printf("Could not read from standard in!\n");
@@ -73,7 +72,6 @@ int main(int argc, char *argv[])
                 FILE_ATTRIBUTE_NORMAL,
                 NULL);
         bool readSuccess = ReadFile(tempFile, readBuffer, readBuffer_size, &bytesRead, NULL);
-        printf("bytes read: %d\n", bytesRead);
         if (!readSuccess)
         {
             printf("Could not read from temp file!\n");
@@ -85,7 +83,7 @@ int main(int argc, char *argv[])
     
 
 
-    printf("Starting sleep.\n");
+    printf("\n\n\nStarting sleep.\n");
 
     Sleep(5000);
 

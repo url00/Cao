@@ -4,9 +4,6 @@ void
 CleanupStuff();
 
 void
-CleanupProcessStuff();
-
-void
 RunCancel();
 
 LRESULT CALLBACK
@@ -24,10 +21,13 @@ ConsoleCtrlHandler(
 );
 
 VOID CALLBACK 
-LaunchedProcessExited(
+LaunchedProcessExitedOrCancelled(
     PVOID lpParameter,
     BOOLEAN TimerOrWaitFired
 );
+
+void
+TerminateChild();
 
 // For debug console.
 class OutBuffer : public std::streambuf

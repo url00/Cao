@@ -17,8 +17,8 @@
 
 
 
-// Global data:
-static const wchar_t *Title = L"Cao";
+// Global data.
+static const wchar_t *TITLE = L"Cao";
 static HWND MyWindow = NULL;
 static HHOOK KeyboardHook;
 
@@ -33,12 +33,15 @@ static const UINT IconMenu_Exit       = __IconMenu_MessageIdStart + 1;
 
 
 
-static bool isProcessRunning = false;
+static bool isChildRunning    = false;
+static bool wasChildCancelled = false;
+
 static HANDLE Child_In_Read   = NULL;
 static HANDLE Child_In_Write  = NULL;
 static HANDLE Child_Out_Read  = NULL;
 static HANDLE Child_Out_Write = NULL;
-static PROCESS_INFORMATION procInfo = { 0 };
+
+static PROCESS_INFORMATION ChildProcInfo = { 0 };
 
 
 
@@ -55,7 +58,7 @@ WinMain(
 	int       cmdShow
 )
 {
-	// Set up and display console for debugging:
+	// Set up and display console for debugging.
 	if (AllocConsole())
     {        
         // Set up handle to my standard out. The console needs to exist for the handle to return valid.
@@ -63,7 +66,7 @@ WinMain(
 
 		FILE *cout;
 		freopen_s(&cout, "CONOUT$", "w", stdout);
-		SetConsoleTitle(Title);
+		SetConsoleTitle(TITLE);
 		SetConsoleTextAttribute(My_Out, FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
         SetConsoleCtrlHandler(ConsoleCtrlHandler, true);
 	}
@@ -79,7 +82,7 @@ WinMain(
 
 
 
-	// Set up applicaion:
+	// Set up applicaion.
 	WNDCLASSEX WindowClass    = { 0 };
 	WindowClass.cbSize	      = sizeof(WNDCLASSEX);
 	WindowClass.style         = CS_HREDRAW | CS_VREDRAW;
@@ -91,14 +94,14 @@ WinMain(
 	WindowClass.hCursor       = LoadCursor(NULL, IDC_ARROW);
 	WindowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 	WindowClass.lpszMenuName  = NULL;
-	WindowClass.lpszClassName = Title;
+	WindowClass.lpszClassName = TITLE;
 	WindowClass.hIconSm       = LoadIcon(WindowClass.hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
 
 	if (!RegisterClassEx(&WindowClass))
 	{
 		MessageBox(NULL,
 			_T("Call to RegisterClassEx failed!"),
-			Title,
+			TITLE,
 			NULL);
 
 		return 1;
@@ -106,10 +109,10 @@ WinMain(
 
 
 
-	// Set up window:
+	// Set up window.
 	MyWindow = CreateWindow(
 		WindowClass.lpszClassName,
-		Title,
+		TITLE,
 		WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT, CW_USEDEFAULT,
 		500, 100,
@@ -124,7 +127,7 @@ WinMain(
 		MessageBox(
 			NULL,
 			_T("Call to CreateWindow failed!"),
-			Title,
+			TITLE,
 			NULL);
 
 		return 1;
@@ -141,7 +144,7 @@ WinMain(
 
 
 	
-    // Set up tray icon menu:
+    // Set up tray icon menu.
     IconMenu = CreatePopupMenu();
     AppendMenu(IconMenu, MF_STRING,    IconMenu_RunCancel, L"Run");
     AppendMenu(IconMenu, MF_SEPARATOR, 0,                  NULL);
@@ -149,7 +152,7 @@ WinMain(
 
 
 
-	// Set up tray icon:
+	// Set up tray icon.
 	IconData.cbSize           = sizeof(NOTIFYICONDATA);
 	IconData.hWnd             = MyWindow;
 	IconData.uID              = 0;
@@ -163,9 +166,9 @@ WinMain(
 	IconData.uVersion         = NOTIFYICON_VERSION_4;
     IconData.dwInfoFlags      = 0;
     IconData.hIcon = LoadIcon(NULL, IDI_ASTERISK);
-    StringCchCopy(IconData.szTip,       ARRAYSIZE(IconData.szTip),       Title);
-    StringCchCopy(IconData.szInfoTitle, ARRAYSIZE(IconData.szInfoTitle), Title);
-    StringCchCopy(IconData.szInfo,      ARRAYSIZE(IconData.szInfo),      Title);
+    StringCchCopy(IconData.szTip,       ARRAYSIZE(IconData.szTip),       TITLE);
+    StringCchCopy(IconData.szInfoTitle, ARRAYSIZE(IconData.szInfoTitle), TITLE);
+    StringCchCopy(IconData.szInfo,      ARRAYSIZE(IconData.szInfo),      TITLE);
 
 	// Add the icon.
 	BOOL wasIconCreated = Shell_NotifyIcon(NIM_ADD, &IconData);
@@ -183,7 +186,7 @@ WinMain(
             MessageBox(
                 MyWindow,
                 L"Call to Shell_NotifyIcon failed!",
-                Title,
+                TITLE,
                 NULL);
 
             return EXIT_FAILURE;
@@ -192,12 +195,12 @@ WinMain(
 
 
 
-	// Set up global hook:
+	// Set up global hook.
 	//KeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, Instance, NULL);
 
 
     
-	// Main message loop:  
+	// Main message loop.
 	MSG msg;
 	while (GetMessage(&msg, NULL, 0, 0))
 	{
@@ -215,7 +218,6 @@ CleanupStuff()
 {
     UnhookWindowsHookEx(KeyboardHook);
     Shell_NotifyIcon(NIM_DELETE, &IconData);
-    CleanupProcessStuff();
 
     if (My_Out != NULL || My_Out == INVALID_HANDLE_VALUE)
     {
@@ -224,51 +226,51 @@ CleanupStuff()
             printf("Couldn't close My_Out!\n");
         }
     }
+
+    if (isChildRunning)
+    {
+        TerminateChild();
+    }
 }
 
 void
-CleanupProcessStuff()
-{
-    if (procInfo.hProcess != NULL)
+TerminateChild()
+{    
+    if (ChildProcInfo.hProcess != NULL)
     {
-        if(TerminateProcess(procInfo.hProcess, 0))
+        if(TerminateProcess(ChildProcInfo.hProcess, 0))
         {
-            Child_In_Read   = NULL;
-            Child_In_Write  = NULL;
-            Child_Out_Read  = NULL;
-            Child_Out_Write = NULL;
+            isChildRunning = false;
         }
-    }
-
-    if (Child_In_Read != NULL && Child_In_Read != INVALID_HANDLE_VALUE)
-    {
-        if(!CloseHandle(Child_In_Read))
+        else
         {
-            printf("Couldn't close Child_In_Read!\n");
+            // @log error terminating process
+            printf("Couldn't terminate process!\n");
+        }         
+
+
+        if (Child_In_Read != NULL && Child_In_Read != INVALID_HANDLE_VALUE)
+        {
+            if(!CloseHandle(Child_In_Read)) printf("Couldn't close Child_In_Read!\n");
+            else Child_In_Read = NULL;
         }
-    }
 
-    if (Child_In_Write != NULL && Child_In_Write != INVALID_HANDLE_VALUE)
-    {
-        if(!CloseHandle(Child_In_Write))
+        if (Child_In_Write != NULL && Child_In_Write != INVALID_HANDLE_VALUE)
         {
-            printf("Couldn't close Child_In_Write!\n");
+            if(!CloseHandle(Child_In_Write)) printf("Couldn't close Child_In_Write!\n");
+            else Child_In_Write = NULL;
         }
-    }
 
-    if (Child_Out_Read != NULL && Child_Out_Read != INVALID_HANDLE_VALUE)
-    {
-        if(!CloseHandle(Child_Out_Read))
+        if (Child_Out_Read != NULL && Child_Out_Read != INVALID_HANDLE_VALUE)
         {
-            printf("Couldn't close Child_Out_Read!\n");
+            if(!CloseHandle(Child_Out_Read)) printf("Couldn't close Child_Out_Read!\n");
+            else Child_Out_Read = NULL;
         }
-    }
 
-    if (Child_Out_Write != NULL && Child_Out_Write != INVALID_HANDLE_VALUE)
-    {
-        if(!CloseHandle(Child_Out_Write))
+        if (Child_Out_Write != NULL && Child_Out_Write != INVALID_HANDLE_VALUE)
         {
-            printf("Couldn't close Child_Out_Write!\n");
+            if(!CloseHandle(Child_Out_Write)) printf("Couldn't close Child_Out_Write!\n");
+            else Child_Out_Write = NULL;
         }
     }
 }
@@ -276,23 +278,18 @@ CleanupProcessStuff()
 void
 RunCancel()
 {
-    if (isProcessRunning)
+    if (isChildRunning)
     {
         printf("Process still running! Attempting to stop...\n");
-
-        bool success = TerminateProcess(procInfo.hProcess, 0);
-        if (!success)
-        {
-            printf("Process could not be terminated!\n");
-        }
-
+        wasChildCancelled = true;
+        TerminateChild();
         return;
     }
 
 
     printf("Running.\n");
     
-	// Get clipboard data:
+	// Get clipboard data.
 	// Try to open the clipboard.
 	if (!OpenClipboard(MyWindow))
 	{
@@ -343,23 +340,18 @@ RunCancel()
 		HGLOBAL textDataHandle = GetClipboardData(CF_UNICODETEXT);
 		if (textDataHandle == NULL)
 		{
-			goto exit;
+			goto textData_cleanup;
 		}
 
 		wchar_t *text = static_cast<wchar_t*>(GlobalLock(textDataHandle));
 		if (text == NULL)
 		{
-			GlobalUnlock(text);
-			goto exit;
+			goto textData_cleanup;
 		}
 
 
 
-        // Start of child process creation:
-        
-        // Create handles for standard IO.
-
-
+        // Start of child process creation.
         SECURITY_ATTRIBUTES secAttr;
         secAttr.nLength              = sizeof(secAttr);
         secAttr.bInheritHandle       = true;
@@ -377,8 +369,7 @@ RunCancel()
             {
                 // @logging log error.
                 printf("Could not create standard in pipe!\n");
-                // @leak goto exit leaves handles open
-                goto exit;
+                goto textData_cleanup;
             }
 
             bool setPipeFlagSuccess = SetHandleInformation(Child_In_Write, HANDLE_FLAG_INHERIT, 0);
@@ -386,8 +377,7 @@ RunCancel()
             {
                 // @logging log error.
                 printf("Could not set standard in pipe information!\n");
-                // @leak goto exit leaves handles open
-                goto exit;
+                goto textData_cleanup;
             }
         }
 
@@ -404,8 +394,7 @@ RunCancel()
             {
                 // @logging log error.
                 printf("Could not create standard out pipe!\n");
-                // @leak goto exit leaves handles open
-                goto exit;
+                goto textData_cleanup;
             }
 
             bool setPipeFlagSuccess = SetHandleInformation(Child_Out_Read, HANDLE_FLAG_INHERIT, 0);
@@ -413,8 +402,7 @@ RunCancel()
             {
                 // @logging log error.
                 printf("Could not set standard out pipe information!\n");
-                // @leak goto exit leaves handles open
-                goto exit;
+                goto textData_cleanup;
             }
         }       
 
@@ -422,14 +410,11 @@ RunCancel()
         {
             DWORD bytesWritten = 0;
             bool writeSuccess = WriteFile(Child_In_Write, text, wcslen(text) * 2, &bytesWritten, NULL);
-            // @release remove debug message
-            printf("bytes written: %d\n", bytesWritten);
             if (!writeSuccess)
             {
                 // @logging log error.
                 printf("Could not write to child's standard in!\n");
-                // @leak goto exit leaves handles open
-                goto exit;
+                goto textData_cleanup;
             }
         }
         
@@ -438,10 +423,9 @@ RunCancel()
             TCHAR tempPath[MAX_PATH];
             DWORD tempPathLength = GetTempPath(MAX_PATH, tempPath);
         
-            printf("Temp file path: %ls\n\n", tempPath);
-            // GetTempFileName CREATES A FILE IF IT SUCCEEDS. WHY?!?!?!
-            GetTempFileName(tempPath, L"aaa", 0, tempFileNameAndPath);
-            printf("Temp file path and name: %ls\n\n", tempFileNameAndPath);
+            // GetTempFileName CREATES A FILE IF IT SUCCEEDS.
+            GetTempFileName(tempPath, TITLE, 0, tempFileNameAndPath);
+            printf("Temp file path and name: %ls\n", tempFileNameAndPath);
 
             char openFileName[MAX_PATH];
             HANDLE tempFile =
@@ -454,22 +438,24 @@ RunCancel()
                     FILE_ATTRIBUTE_NORMAL,
                     NULL); 
             
-            // @bug seems like we are writting too many bytes.
             DWORD bytesWritten = 0;
             bool writeSuccess = WriteFile(tempFile, text, wcslen(text) * 2, &bytesWritten, NULL);
             if (!writeSuccess)
             {
                 // @logging log error.
                 printf("Could not write to temp file!\n");
-                // @leak goto exit leaves handles open
-                goto exit;
+                goto textData_cleanup;
             }
 
             
             CloseHandle(tempFile);
         }
         
-        wchar_t commandLine[4096] = L"..\\Debug\\Echoer.exe ";
+
+
+        // Build command string.
+        const int commandLine_size = 4096;
+        wchar_t commandLine[commandLine_size] = L"..\\Debug\\Echoer.exe ";
 
         // Add temp file path as the first argument.
         wcscat_s(commandLine, tempFileNameAndPath);
@@ -477,6 +463,8 @@ RunCancel()
 
         // Add clipboard data for the remaining arguments.
         wcscat_s(commandLine, text);
+
+
   
         // Create the child process.
         {
@@ -497,30 +485,32 @@ RunCancel()
                 NULL,
                 NULL,
                 &startupInfo,
-                &procInfo);        
+                &ChildProcInfo);        
             if (!createProcessSuccess)
             {
                 printf("Could not start child process with command line: %ls", commandLine);
-                // @leak goto exit leaves handles open
-                goto exit;
+                goto textData_cleanup;
             }
 
-            isProcessRunning = true;
+            isChildRunning = true;
             ModifyMenu(IconMenu, IconMenu_RunCancel, MF_BYCOMMAND, IconMenu_RunCancel, L"Cancel");
 
+            // newHandle is always 0x00000000 so I'm assuming I don't need to clean it up.
             HANDLE newHandle;
-            RegisterWaitForSingleObject(&newHandle, procInfo.hProcess, LaunchedProcessExited, NULL, INFINITE, WT_EXECUTEONLYONCE);
+            RegisterWaitForSingleObject(&newHandle, ChildProcInfo.hProcess, LaunchedProcessExitedOrCancelled, NULL, INFINITE, WT_EXECUTEONLYONCE);
         }
-
+        
+    textData_cleanup:
+        // GlobalUnlock makes the handle invalid - no need to call CloseHandle.
 		GlobalUnlock(textDataHandle);
 	}
 	else
 	{
 		// Error or no data.
-        goto exit;
+        goto clipboard_cleanup;
 	}
 
-exit:
+clipboard_cleanup:
 	CloseClipboard();
 }
 
@@ -678,12 +668,18 @@ ConsoleCtrlHandler(
 }
 
 VOID CALLBACK
-LaunchedProcessExited(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
+LaunchedProcessExitedOrCancelled(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
 {
-    isProcessRunning = false;
+    isChildRunning = false;
     ModifyMenu(IconMenu, IconMenu_RunCancel, MF_BYCOMMAND, IconMenu_RunCancel, L"Run");
 
-    printf("\n\n\nProcess exited.\n");
+    if (wasChildCancelled)
+    {
+        printf("Child cancelled.\n");
+        goto child_cleanup;
+    }
+
+    printf("Child exited.\n");
     // @todo is this big enough?
     const int pipeBuffer_size = 500000;
     char *pipeBuffer = new char[pipeBuffer_size];
@@ -696,7 +692,7 @@ LaunchedProcessExited(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
         {
             // @logging log error.
             printf("Could not read from child's standard out!\n");
-            goto readFailure;
+            goto pipeBuffer_cleanup;
         }
 
         // Write to my standard out.
@@ -706,15 +702,14 @@ LaunchedProcessExited(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
         {
             // @logging log error.
             printf("Could not write to my standard out!\n");
-            goto writeFailure;
+            goto pipeBuffer_cleanup;
         }
     }
     
-    printf("Back to normal.");
+    printf("Back to normal.\n");
 
-writeFailure:
-readFailure:
-    CleanupProcessStuff();
-    procInfo = { 0 };
+pipeBuffer_cleanup:    
     delete[] pipeBuffer;
+child_cleanup:
+    ChildProcInfo = { 0 };
 }
