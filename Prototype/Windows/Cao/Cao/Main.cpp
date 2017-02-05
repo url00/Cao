@@ -2,6 +2,7 @@
 #pragma comment(lib, "user32.lib")
 
 #include <Windows.h>
+#include <CommCtrl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <tchar.h>
@@ -22,6 +23,7 @@ static const wchar_t *TITLE = L"Cao";
 static HWND MyWindow = NULL;
 static HHOOK KeyboardHook;
 static HANDLE My_Out = NULL;
+static bool isWindowShowing = false;
 
 
 
@@ -31,6 +33,10 @@ static HMENU IconMenu;
 static const UINT __IconMenu_MessageIdStart = 1337;
 static const UINT IconMenu_RunCancel  = __IconMenu_MessageIdStart + 0;
 static const UINT IconMenu_Exit       = __IconMenu_MessageIdStart + 1;
+
+
+
+static HWND LauncherBox;
 
 
 
@@ -300,6 +306,21 @@ WinMain(
 
     // Load and parse config file.
     LoadConfigFile();
+
+
+
+    // Set up combobox
+    LauncherBox =
+        CreateWindow(
+            WC_COMBOBOX,
+            L"",
+            CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
+            10, 10, 
+            200, 60, 
+            MyWindow,
+            NULL,
+            Instance,
+            NULL);
 
 
     
@@ -676,21 +697,19 @@ KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
 LRESULT CALLBACK
 WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    PAINTSTRUCT ps;
-    HDC hdc;
     TCHAR greeting[] = _T("Hello, World!");
 
     switch (message)
     {
         case WM_PAINT:
         {
-            /*
-            hdc = BeginPaint(Window, &ps);
+            PAINTSTRUCT paintStruct;
+            HDC context = BeginPaint(MyWindow, &paintStruct);
 
-            TextOut(hdc, 5, 5, greeting, _tcslen(greeting));
-            
-            */
-            EndPaint(Window, &ps);
+            wchar_t *message = L"Hi.";
+            TextOut(context, 5, 5, message, wcslen(message));
+
+            EndPaint(Window, &paintStruct);
             break;
         }
 
@@ -707,7 +726,16 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
             {
                 case WM_LBUTTONDBLCLK:
                 {
-                    //ShowWindow(hWnd, SW_RESTORE);
+                    if (isWindowShowing)
+                    {
+                        isWindowShowing = false;
+                        ShowWindow(MyWindow, SW_HIDE);
+                    }
+                    else
+                    {
+                        isWindowShowing = true;
+                        ShowWindow(MyWindow, SW_RESTORE);
+                    }
                     break;
                 }
 
