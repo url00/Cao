@@ -53,13 +53,13 @@ public:
 
 typedef struct Config
 {
-    wchar_t name[255];
-    wchar_t command[MAX_PATH];
+    char name[255];
+    char command[MAX_PATH];
 } Config;
 
-#define ConfigFil_Configs_size 200
+#define ConfigFile_Configs_size 200
 typedef struct ConfigFile
 {
     int configCount;
-    Config Configs[ConfigFil_Configs_size];
+    Config Configs[ConfigFile_Configs_size];
 } ConfigFile;

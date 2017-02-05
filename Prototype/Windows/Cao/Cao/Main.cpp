@@ -56,7 +56,7 @@ void
 LoadConfigFile()
 {
     const int readBuffer_size = 300000;
-    wchar_t *readBuffer = new wchar_t[readBuffer_size];
+    char *readBuffer = new char[readBuffer_size];
     readBuffer[0] = '\0';
     DWORD bytesRead = 0;        
 
@@ -78,11 +78,11 @@ LoadConfigFile()
     CloseHandle(configFile);
 
     int currentCommandIndex = 0;
-    wchar_t *readCharDest = LoadedConfigFile.Configs[currentCommandIndex].name;
+    char *readCharDest = LoadedConfigFile.Configs[currentCommandIndex].name;
     bool readingName = true;
-    for (int i = 1; i < bytesRead / 2; i++)
+    for (int i = 3; i < bytesRead; i++)
     {
-        wchar_t currentChar = readBuffer[i];
+        char currentChar = readBuffer[i];
         if (currentChar == '"')
         {
             if (readingName)
@@ -103,13 +103,14 @@ LoadConfigFile()
             i++;
             currentCommandIndex++;
             LoadedConfigFile.configCount++;
+            readingName = true;
         }
         else
         {
-            wchar_t charWithNull[2];
+            char charWithNull[2];
             charWithNull[0] = currentChar;
             charWithNull[1] = '\0';
-            wcscat_s(readCharDest, 255, charWithNull);
+            strcat_s(readCharDest, 255, charWithNull);
         }
     }
 
@@ -418,12 +419,15 @@ RunCancel()
             goto textData_cleanup;
         }
 
-        wchar_t *text = static_cast<wchar_t*>(GlobalLock(textDataHandle));
-        if (text == NULL)
+        wchar_t *wideText = static_cast<wchar_t*>(GlobalLock(textDataHandle));
+        if (wideText == NULL)
         {
             goto textData_cleanup;
         }
 
+        char text[20000];
+        size_t numCharsConverted = 0;
+        wcstombs_s(&numCharsConverted, text, wideText, _TRUNCATE);
 
 
         // Start of child process creation.
@@ -484,7 +488,7 @@ RunCancel()
         // Write to the processes' standard in.
         {
             DWORD bytesWritten = 0;
-            bool writeSuccess = WriteFile(Child_In_Write, text, wcslen(text) * 2, &bytesWritten, NULL);
+            bool writeSuccess = WriteFile(Child_In_Write, text, strnlen_s(text, 20000), &bytesWritten, NULL);
             if (!writeSuccess)
             {
                 // @logging log error.
@@ -514,7 +518,7 @@ RunCancel()
                     NULL); 
             
             DWORD bytesWritten = 0;
-            bool writeSuccess = WriteFile(tempFile, text, wcslen(text) * 2, &bytesWritten, NULL);
+            bool writeSuccess = WriteFile(tempFile, text, strnlen_s(text, 20000), &bytesWritten, NULL);
             if (!writeSuccess)
             {
                 // @logging log error.
@@ -535,7 +539,10 @@ RunCancel()
         //wchar_t commandLine[commandLine_size] = L"..\\Debug\\Echoer.exe ";
 
         // Add command as zeroith argument.
-        wcscat_s(commandLine, LoadedConfigFile.Configs[currentConfigIndex].command);
+        wchar_t convertedCommand[255];
+        size_t numConverted = 0;
+        mbstowcs_s(&numConverted, convertedCommand, LoadedConfigFile.Configs[currentConfigIndex].command, _TRUNCATE);
+        wcscat_s(commandLine, convertedCommand);
         wcscat_s(commandLine, L" ");
 
         // Add temp file path as the first argument.
@@ -543,7 +550,7 @@ RunCancel()
         wcscat_s(commandLine, L" ");
 
         // Add clipboard data for the remaining arguments.
-        wcscat_s(commandLine, text);
+        wcscat_s(commandLine, wideText);
 
 
   
@@ -800,7 +807,7 @@ LaunchedProcessExitedOrCancelled(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
         memcpy_s(writeableClipboardMemory, numBytesRead, pipeBuffer, numBytesRead);
         GlobalUnlock(writeableClipboardMemory);
         
-        printf("Attempting to open clipboard...\n");
+        printf("\n\n\nAttempting to open clipboard...\n");
     
         if (!OpenClipboard(MyWindow))
         {
