@@ -1,4 +1,4 @@
-// Compile with: /D_UNICODE /DUNICODE /DWIN32 /D_WINDOWS /c  
+// Compile with: /D_UNICODE /DUNICODE /DWIN32 /D_WINDOWS /c /F 8000000 
 #pragma comment(lib, "user32.lib")
 
 #include <Windows.h>
@@ -47,16 +47,18 @@ static PROCESS_INFORMATION ChildProcInfo = { 0 };
 
 
 static const wchar_t *configFilename = L"config.txt";
-static ConfigFile LoadedConfigFile = { 0 };
 static int currentConfigIndex = 2;
+static int Configs_count = 0;
+static const int Configs_size = 200;
+Config Configs[Configs_size];
 
 
 
 void
 LoadConfigFile()
 {
-    const int readBuffer_size = 300000;
-    char *readBuffer = new char[readBuffer_size];
+    const int readBuffer_size = 200000;
+    char readBuffer[readBuffer_size];
     readBuffer[0] = '\0';
     DWORD bytesRead = 0;        
 
@@ -77,22 +79,43 @@ LoadConfigFile()
 
     CloseHandle(configFile);
 
+    if (bytesRead < 3)
+    {
+        // @log err
+        printf("Invalid config file!\n");
+        PostQuitMessage(EXIT_FAILURE);
+        return;
+    }
+
+
+
     int currentCommandIndex = 0;
-    char *readCharDest = LoadedConfigFile.Configs[currentCommandIndex].name;
+    char *readCharDest = Configs[currentCommandIndex].name;
     bool readingName = true;
-    // @hack assumes utf8 for config file.
-    for (int i = 3; i < bytesRead; i++)
+
+
+
+    // Detect BOM and move past it.
+    int startingOffset = 0;
+    if (readBuffer[0] == 0xef &&
+        readBuffer[1] == 0xbb &&
+        readBuffer[2] == 0xbf)
+    {
+        startingOffset = 3;
+    }
+
+    for (int i = startingOffset; i < bytesRead; i++)
     {
         char currentChar = readBuffer[i];
         if (currentChar == '"')
         {
             if (readingName)
             {
-                readCharDest = LoadedConfigFile.Configs[currentCommandIndex].name;
+                readCharDest = Configs[currentCommandIndex].name;
             }
             else
             {
-                readCharDest = LoadedConfigFile.Configs[currentCommandIndex].command;
+                readCharDest = Configs[currentCommandIndex].command;
             }
         }
         else if (currentChar == ':')
@@ -104,13 +127,13 @@ LoadConfigFile()
             // Skip the newline character for \r\n endings.
             i++;
             currentCommandIndex++;
-            LoadedConfigFile.configCount++;
+            Configs_count++;
             readingName = true;
         }
         else if (currentChar == '\n')
         {
             currentCommandIndex++;
-            LoadedConfigFile.configCount++;
+            Configs_count++;
             readingName = true;
         }
         else
@@ -121,8 +144,6 @@ LoadConfigFile()
             strcat_s(readCharDest, 255, charWithNull);
         }
     }
-
-    delete[] readBuffer;
 }
 
 
@@ -156,11 +177,6 @@ WinMain(
     OutBuffer Buffer;
     std::streambuf *sb = std::cout.rdbuf(&Buffer);
     std::cout.rdbuf(sb);
-    
-
-
-    // Load and parse config file.
-    LoadConfigFile();
 
 
 
@@ -186,7 +202,7 @@ WinMain(
             TITLE,
             NULL);
 
-        return 1;
+        return EXIT_FAILURE;
     }
 
 
@@ -212,7 +228,7 @@ WinMain(
             TITLE,
             NULL);
 
-        return 1;
+        return EXIT_FAILURE;
     }
 
     // @todo only show window on click or keyboard shortcut.
@@ -279,6 +295,11 @@ WinMain(
 
     // Set up global hook.
     //KeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, Instance, NULL);
+    
+
+
+    // Load and parse config file.
+    LoadConfigFile();
 
 
     
@@ -301,12 +322,14 @@ CleanupStuff()
     UnhookWindowsHookEx(KeyboardHook);
     Shell_NotifyIcon(NIM_DELETE, &IconData);
 
-    if (My_Out != NULL || My_Out == INVALID_HANDLE_VALUE)
+    if (My_Out != NULL && My_Out != INVALID_HANDLE_VALUE)
     {
         if(!CloseHandle(My_Out))
         {
             printf("Couldn't close My_Out!\n");
         }
+
+        My_Out = NULL;
     }
 
     if (isChildRunning)
@@ -367,7 +390,6 @@ RunCancel()
         TerminateChild();
         return;
     }
-
 
     printf("Running.\n");
     
@@ -433,7 +455,7 @@ RunCancel()
             goto textData_cleanup;
         }
 
-        char text[20000];
+        char text[200000];
         size_t numCharsConverted = 0;
         wcstombs_s(&numCharsConverted, text, wideText, _TRUNCATE);
 
@@ -496,7 +518,7 @@ RunCancel()
         // Write to the processes' standard in.
         {
             DWORD bytesWritten = 0;
-            bool writeSuccess = WriteFile(Child_In_Write, text, strnlen_s(text, 20000), &bytesWritten, NULL);
+            bool writeSuccess = WriteFile(Child_In_Write, text, strnlen_s(text, 200000), &bytesWritten, NULL);
             if (!writeSuccess)
             {
                 // @logging log error.
@@ -508,7 +530,7 @@ RunCancel()
         wchar_t tempFileNameAndPath[MAX_PATH];
         {
             TCHAR tempPath[MAX_PATH];
-            DWORD tempPathLength = GetTempPath(MAX_PATH, tempPath);
+            GetTempPath(MAX_PATH, tempPath);
         
             // GetTempFileName CREATES A FILE IF IT SUCCEEDS.
             GetTempFileName(tempPath, TITLE, 0, tempFileNameAndPath);
@@ -526,7 +548,7 @@ RunCancel()
                     NULL); 
             
             DWORD bytesWritten = 0;
-            bool writeSuccess = WriteFile(tempFile, text, strnlen_s(text, 20000), &bytesWritten, NULL);
+            bool writeSuccess = WriteFile(tempFile, text, strnlen_s(text, 200000), &bytesWritten, NULL);
             if (!writeSuccess)
             {
                 // @logging log error.
@@ -541,24 +563,25 @@ RunCancel()
 
 
         // Build command string.
-        const int commandLine_size = 4096;
+        const int commandLine_size = 200000;
         wchar_t commandLine[commandLine_size];
         commandLine[0] = '\0';
-        //wchar_t commandLine[commandLine_size] = L"..\\Debug\\Echoer.exe ";
 
-        // Add command as zeroith argument.
-        wchar_t convertedCommand[255];
-        size_t numConverted = 0;
-        mbstowcs_s(&numConverted, convertedCommand, LoadedConfigFile.Configs[currentConfigIndex].command, _TRUNCATE);
-        wcscat_s(commandLine, convertedCommand);
-        wcscat_s(commandLine, L" ");
+        {
+            // Add command as zeroith argument.
+            wchar_t convertedCommand[command_size];
+            size_t numConverted = 0;
+            mbstowcs_s(&numConverted, convertedCommand, Configs[currentConfigIndex].command, _TRUNCATE);
+            wcscat_s(commandLine, convertedCommand);
+            wcscat_s(commandLine, L" ");
 
-        // Add temp file path as the first argument.
-        wcscat_s(commandLine, tempFileNameAndPath);
-        wcscat_s(commandLine, L" ");
+            // Add temp file path as the first argument.
+            wcscat_s(commandLine, tempFileNameAndPath);
+            wcscat_s(commandLine, L" ");
 
-        // Add clipboard data for the remaining arguments.
-        wcscat_s(commandLine, wideText);
+            // Add clipboard data for the remaining arguments.
+            wcscat_s(commandLine, wideText);
+        }
 
 
   
@@ -777,8 +800,8 @@ LaunchedProcessExitedOrCancelled(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
     }
 
     printf("Child exited.\n");
-    // @todo is this big enough?
-    const int pipeBuffer_size = 500000;
+
+    const int pipeBuffer_size = 200000;
     char *pipeBuffer = new char[pipeBuffer_size];
             
     {

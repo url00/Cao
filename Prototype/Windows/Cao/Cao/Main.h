@@ -51,15 +51,10 @@ public:
     }
 };
 
+static const int name_size = 255;
+static const int command_size = MAX_PATH;
 typedef struct Config
 {
-    char name[255];
-    char command[MAX_PATH];
+    char name[name_size];
+    char command[command_size];
 } Config;
-
-#define ConfigFile_Configs_size 200
-typedef struct ConfigFile
-{
-    int configCount;
-    Config Configs[ConfigFile_Configs_size];
-} ConfigFile;

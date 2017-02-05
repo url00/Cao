@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
 
     printf("via stdin:\n");
     {
-        const int readBuffer_size = 300000;
+        const int readBuffer_size = 200000;
         wchar_t *readBuffer = new wchar_t[readBuffer_size];
         DWORD bytesRead = 0;
         
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
 
     printf("via temp file:\n");
     {
-        const int readBuffer_size = 300000;
+        const int readBuffer_size = 200000;
         wchar_t *readBuffer = new wchar_t[readBuffer_size];
         DWORD bytesRead = 0;        
 
