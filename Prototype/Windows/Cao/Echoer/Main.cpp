@@ -85,6 +85,13 @@ int main(int argc, char *argv[])
     
 
 
+    printf("Starting sleep.\n");
+
+    Sleep(5000);
+
+    printf("Ending sleep.\n");
+
+    
 
     printf("\n\n\n---------- End of Echoer ----------\n\n\n");
 }

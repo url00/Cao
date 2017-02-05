@@ -211,6 +211,20 @@ CleanupStuff()
 void
 Run()
 {
+    if (isProcessRunning)
+    {
+        printf("Process still running! Attempting to stop...\n");
+
+        bool success = TerminateProcess(procInfo.hProcess, 0);
+        if (!success)
+        {
+            printf("Process could not be terminated!\n");
+        }
+
+        return;
+    }
+
+
     printf("Running.\n");
     
 	// Get clipboard data:
@@ -427,6 +441,7 @@ Run()
             }
 
             isProcessRunning = true;
+            ModifyMenu(IconMenu, IconMenu_Run, MF_BYCOMMAND, IconMenu_Run, L"Cancel");
 
             HANDLE newHandle;
             RegisterWaitForSingleObject(&newHandle, procInfo.hProcess, LaunchedProcessExited, NULL, INFINITE, WT_EXECUTEONLYONCE);
@@ -610,10 +625,12 @@ VOID CALLBACK
 LaunchedProcessExited(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
 {
     isProcessRunning = false;
+    ModifyMenu(IconMenu, IconMenu_Run, MF_BYCOMMAND, IconMenu_Run, L"Run");
+
     printf("\n\n\nProcess exited.\n");
     // @todo is this big enough?
     const int pipeBuffer_size = 500000;
-    char pipeBuffer[pipeBuffer_size];
+    char *pipeBuffer = new char[pipeBuffer_size];
             
     // Read from processes' standard out.
     {
@@ -639,7 +656,7 @@ LaunchedProcessExited(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
             goto exit;
         }
     }
-             
+    
     printf("Back to normal.");
 
 exit:
@@ -647,4 +664,6 @@ exit:
     CloseHandle(procInfo.hThread);
 
     procInfo = { 0 };
+
+    delete[] pipeBuffer;
 }
