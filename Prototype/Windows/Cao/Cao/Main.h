@@ -10,9 +10,6 @@ void
 RunCancel();
 
 LRESULT CALLBACK
-KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam);
-
-LRESULT CALLBACK
 WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam);
 
 LONG WINAPI
@@ -34,6 +31,9 @@ LoadConfigFile();
 
 void
 TerminateChild();
+
+void
+HandleIconMessage(LPARAM message);
 
 // For debug console.
 class OutBuffer : public std::streambuf

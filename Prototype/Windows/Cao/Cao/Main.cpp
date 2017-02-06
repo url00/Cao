@@ -60,6 +60,10 @@ Config Configs[Configs_size];
 
 
 
+static RAWINPUTDEVICE rawKeyboard = { 0 };
+
+
+
 void
 LoadConfigFile()
 {
@@ -314,12 +318,7 @@ WinMain(
     }
 
 
-
-    // Set up global hook.
-    KeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, Instance, NULL);
     
-
-
     // Load and parse config file.
     LoadConfigFile();
 
@@ -337,6 +336,16 @@ WinMain(
             NULL,
             Instance,
             NULL);
+
+
+
+    // Set up raw input.
+    rawKeyboard.dwFlags     = RIDEV_NOLEGACY | RIDEV_INPUTSINK;
+    rawKeyboard.usUsagePage = 1;
+    rawKeyboard.usUsage     = 6;
+    rawKeyboard.hwndTarget  = MyWindow;
+    RegisterRawInputDevices(&rawKeyboard, 1, sizeof(rawKeyboard));
+
 
 
     
@@ -670,33 +679,88 @@ clipboard_cleanup:
     CloseClipboard();
 }
 
-LRESULT CALLBACK
-KeyboardEvent(int code, WPARAM kindOfKeyboardMessage, LPARAM keyboardEvent)
+void
+HandleIconMessage(LPARAM message)
 {
-    bool shouldIgnoreMessage = kindOfKeyboardMessage == WM_KEYUP || kindOfKeyboardMessage == WM_SYSKEYUP;
-    bool shouldIgnoreEvent = code < 0 || code != HC_ACTION;
-    if (shouldIgnoreEvent || shouldIgnoreMessage)
+    switch (message)
     {
-        return CallNextHookEx(KeyboardHook, code, kindOfKeyboardMessage, keyboardEvent);
-    }
+        case WM_LBUTTONDBLCLK:
+        {
+            if (isWindowShowing)
+            {
+                isWindowShowing = false;
+                ShowWindow(MyWindow, SW_HIDE);
+            }
+            else
+            {
+                isWindowShowing = true;
+                ShowWindow(MyWindow, SW_RESTORE);
+            }
+            break;
+        }
 
-    KBDLLHOOKSTRUCT *convertedEvent = (KBDLLHOOKSTRUCT*)keyboardEvent;
+        case WM_RBUTTONDOWN:
+        {
+            POINT CursorPoint;
+            GetCursorPos(&CursorPoint);
 
-    if (convertedEvent->vkCode == VK_OEM_3)
-    {
-        RunCancel();
+            SetForegroundWindow(MyWindow);
+
+            UINT clicked =
+                TrackPopupMenu(
+                    IconMenu,
+                    TPM_RETURNCMD | TPM_NONOTIFY,
+                    CursorPoint.x,
+                    CursorPoint.y,
+                    0,
+                    MyWindow,
+                    NULL);
+            switch (clicked)
+            {
+                case IconMenu_Exit:
+                {
+                    DestroyWindow(MyWindow);
+                    break;
+                }
+
+                case IconMenu_RunCancel:
+                {
+                    RunCancel();
+                    break;
+                }
+            }
+
+            break;
+        }
     }
-    
-    return CallNextHookEx(KeyboardHook, code, kindOfKeyboardMessage, keyboardEvent);
 }
 
 LRESULT CALLBACK
 WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    TCHAR greeting[] = _T("Hello, World!");
-
     switch (message)
     {
+        case WM_INPUT:
+        {
+            DWORD size = -1;
+            {
+                HRAWINPUT rawInputParam = (HRAWINPUT)lParam;
+                bool success =
+                    GetRawInputData(
+                        rawInputParam,
+                        RID_INPUT,
+                        NULL,
+                        &size,
+                        sizeof(RAWINPUTHEADER));
+                if (success == -1)
+                {
+                    break;
+                }
+            }
+
+            break;
+        }
+
         case WM_PAINT:
         {
             PAINTSTRUCT paintStruct;
@@ -718,58 +782,7 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
 
         case IconMessage:
         {
-            switch (lParam)
-            {
-                case WM_LBUTTONDBLCLK:
-                {
-                    if (isWindowShowing)
-                    {
-                        isWindowShowing = false;
-                        ShowWindow(MyWindow, SW_HIDE);
-                    }
-                    else
-                    {
-                        isWindowShowing = true;
-                        ShowWindow(MyWindow, SW_RESTORE);
-                    }
-                    break;
-                }
-
-                case WM_RBUTTONDOWN:
-                {
-                    POINT CursorPoint;
-                    GetCursorPos(&CursorPoint);
-
-                    SetForegroundWindow(Window);
-
-                    UINT clicked =
-                        TrackPopupMenu(
-                            IconMenu,
-                            TPM_RETURNCMD | TPM_NONOTIFY,
-                            CursorPoint.x,
-                            CursorPoint.y,
-                            0,
-                            Window,
-                            NULL);
-                    switch (clicked)
-                    {
-                        case IconMenu_Exit:
-                        {
-                            DestroyWindow(Window);
-                            break;
-                        }
-
-                        case IconMenu_RunCancel:
-                        {
-                            RunCancel();
-                            break;
-                        }
-                    }
-
-                    break;
-                }
-            }
-
+            HandleIconMessage();
             break;
         }
 
