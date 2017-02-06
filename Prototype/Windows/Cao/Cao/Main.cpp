@@ -316,7 +316,7 @@ WinMain(
 
 
     // Set up global hook.
-    //KeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, Instance, NULL);
+    KeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, (HOOKPROC)KeyboardEvent, Instance, NULL);
     
 
 
@@ -332,7 +332,7 @@ WinMain(
             L"",
             CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
             0, 0, 
-            1000, 60, 
+            1000, 100, 
             MyWindow,
             NULL,
             Instance,
@@ -673,34 +673,29 @@ clipboard_cleanup:
 LRESULT CALLBACK
 KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
 {
+    // @todo why is this call here?
     CallNextHookEx(KeyboardHook, nCode, wParam, lParam);
-
-    DWORD SHIFT_key = 0;
-    DWORD CTRL_key = 0;
-    DWORD ALT_key = 0;
-
-    if ((nCode == HC_ACTION) && ((wParam == WM_SYSKEYDOWN) || (wParam == WM_KEYDOWN)))
+    
+    bool isKeyDown = (wParam == WM_SYSKEYDOWN) || (wParam == WM_KEYDOWN);
+    bool isAction = nCode == HC_ACTION;
+    if (isAction && isKeyDown)
     {
+        DWORD shift = GetAsyncKeyState(VK_SHIFT);
+        DWORD control = GetAsyncKeyState(VK_CONTROL);
+        DWORD alt = GetAsyncKeyState(VK_MENU);
+
+        const int backtick = 192;
         KBDLLHOOKSTRUCT HookedKey = *((KBDLLHOOKSTRUCT*)lParam);
-
         int key = HookedKey.vkCode;
-
-        SHIFT_key = GetAsyncKeyState(VK_SHIFT);
-        CTRL_key = GetAsyncKeyState(VK_CONTROL);
-        ALT_key = GetAsyncKeyState(VK_MENU);
-
-        if (key >= 'A' && key <= 'Z')
+        if ((key >= 'A' && key <= 'Z') || key == backtick)
         {
-            if (GetAsyncKeyState(VK_SHIFT) >= 0)
+
+            if (shift >= 0)
             {
                 key += 32;
             }
-
-            if (CTRL_key != 0 && key == 'y')
-            {
-                MessageBox(NULL, _T("CTRL-y was pressed\nLaunch your app here"), _T("H O T K E Y"), MB_OK);
-            }
-            else if (CTRL_key != 0 && key == 'e')
+            
+            if (control != 0 && key == backtick)
             {
                 RunCancel();
             }
