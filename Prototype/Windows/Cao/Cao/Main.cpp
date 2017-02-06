@@ -53,7 +53,7 @@ static PROCESS_INFORMATION ChildProcInfo = { 0 };
 
 
 static const wchar_t *configFilename = L"config.txt";
-static int currentConfigIndex = 2;
+static int currentConfigIndex = 0;
 static int Configs_count = 0;
 static const int Configs_size = 200;
 Config Configs[Configs_size];
@@ -671,38 +671,23 @@ clipboard_cleanup:
 }
 
 LRESULT CALLBACK
-KeyboardEvent(int nCode, WPARAM wParam, LPARAM lParam)
+KeyboardEvent(int code, WPARAM kindOfKeyboardMessage, LPARAM keyboardEvent)
 {
-    // @todo why is this call here?
-    CallNextHookEx(KeyboardHook, nCode, wParam, lParam);
-    
-    bool isKeyDown = (wParam == WM_SYSKEYDOWN) || (wParam == WM_KEYDOWN);
-    bool isAction = nCode == HC_ACTION;
-    if (isAction && isKeyDown)
+    bool shouldIgnoreMessage = kindOfKeyboardMessage == WM_KEYUP || kindOfKeyboardMessage == WM_SYSKEYUP;
+    bool shouldIgnoreEvent = code < 0 || code != HC_ACTION;
+    if (shouldIgnoreEvent || shouldIgnoreMessage)
     {
-        DWORD shift = GetAsyncKeyState(VK_SHIFT);
-        DWORD control = GetAsyncKeyState(VK_CONTROL);
-        DWORD alt = GetAsyncKeyState(VK_MENU);
-
-        const int backtick = 192;
-        KBDLLHOOKSTRUCT HookedKey = *((KBDLLHOOKSTRUCT*)lParam);
-        int key = HookedKey.vkCode;
-        if ((key >= 'A' && key <= 'Z') || key == backtick)
-        {
-
-            if (shift >= 0)
-            {
-                key += 32;
-            }
-            
-            if (control != 0 && key == backtick)
-            {
-                RunCancel();
-            }
-        }
+        return CallNextHookEx(KeyboardHook, code, kindOfKeyboardMessage, keyboardEvent);
     }
 
-    return CallNextHookEx(KeyboardHook, nCode, wParam, lParam);
+    KBDLLHOOKSTRUCT *convertedEvent = (KBDLLHOOKSTRUCT*)keyboardEvent;
+
+    if (convertedEvent->vkCode == VK_OEM_3)
+    {
+        RunCancel();
+    }
+    
+    return CallNextHookEx(KeyboardHook, code, kindOfKeyboardMessage, keyboardEvent);
 }
 
 LRESULT CALLBACK
