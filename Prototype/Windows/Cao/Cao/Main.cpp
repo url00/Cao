@@ -800,7 +800,7 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
             */
 
             event = input->data.keyboard.Message;
-            wchar_t keyChar = MapVirtualKey(input->data.keyboard.VKey, MAPVK_VK_TO_CHAR);
+            unsigned char keyChar = input->data.keyboard.VKey;
 
 
 
@@ -813,10 +813,22 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
             
             if (event == WM_KEYDOWN)
             {
-                // @todo
+                if (keyChar == VK_CONTROL)
+                {
+                    isControlDown = true;
+                }
+
+                if (isControlDown && keyChar == VK_OEM_3)
+                {
+                    printf("Hotkey detected!\n");
+                }
             }
             else if (event == WM_KEYUP)
             {
+                if (keyChar == VK_CONTROL)
+                {
+                    isControlDown = false;
+                }
             }
 
 
