@@ -61,6 +61,9 @@ Config Configs[Configs_size];
 
 
 static RAWINPUTDEVICE rawKeyboard = { 0 };
+static bool isControlDown = false;
+static bool isShiftDown   = false;
+static bool isAltDown     = false;
 
 
 
@@ -742,21 +745,81 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
     {
         case WM_INPUT:
         {
-            DWORD size = -1;
+            HRAWINPUT rawInputParam = (HRAWINPUT)lParam;
+            UINT size = 0;
+
             {
-                HRAWINPUT rawInputParam = (HRAWINPUT)lParam;
-                bool success =
+                int result =
                     GetRawInputData(
                         rawInputParam,
                         RID_INPUT,
                         NULL,
                         &size,
                         sizeof(RAWINPUTHEADER));
-                if (success == -1)
+                if (result == -1)
                 {
                     break;
                 }
             }
+
+            // @todo is this really needed? it's a lot of allocs...
+            // replace with a big enough static buffer?
+            char *buffer = new char[size];
+            if (buffer == NULL)
+            {
+                goto buffer_cleanup;
+            }
+            
+            {
+                int result =
+                    GetRawInputData(
+                        rawInputParam,
+                        RID_INPUT,
+                        buffer,
+                        &size,
+                        sizeof(RAWINPUTHEADER));
+                if (result != size)
+                {
+                    goto buffer_cleanup;
+                }
+            }
+
+
+
+            PRAWINPUT input = (PRAWINPUT)buffer;
+            int event = 0;
+
+            /*
+            printf("Keyboard:\tmake: %04x flags: %04x reserved: %04x extra: %08x msg: %04x, vk: %04x\n",
+                   input->data.keyboard.MakeCode,
+                   input->data.keyboard.Flags,
+                   input->data.keyboard.Reserved,
+                   input->data.keyboard.ExtraInformation,
+                   input->data.keyboard.Message,
+                   input->data.keyboard.VKey);
+            */
+
+            event = input->data.keyboard.Message;
+            wchar_t keyChar = MapVirtualKey(input->data.keyboard.VKey, MAPVK_VK_TO_CHAR);
+
+
+
+        buffer_cleanup:
+            delete[] buffer;
+            buffer = NULL;
+            input  = NULL;
+
+
+            
+            if (event == WM_KEYDOWN)
+            {
+                // @todo
+            }
+            else if (event == WM_KEYUP)
+            {
+            }
+
+
 
             break;
         }
@@ -782,7 +845,7 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
 
         case IconMessage:
         {
-            HandleIconMessage();
+            HandleIconMessage(lParam);
             break;
         }
 
