@@ -1,7 +1,7 @@
-#include <stdio.h>
 #include <string>
 #include <Windows.h>
 #include <iostream>
+#include <fstream>
 
 int main(int argc, char *argv[])
 {
@@ -25,8 +25,7 @@ int main(int argc, char *argv[])
         printf("%s\n", buffer);
     }
 
-
-    
+        
     
     printf("\n\n\n====================\n\n\n");
 
@@ -34,21 +33,29 @@ int main(int argc, char *argv[])
 
     printf("via stdin:\n");
     {
-        const int readBuffer_size = 600;
-        wchar_t *readBuffer[readBuffer_size];
-        DWORD bytesRead = 0;
+        const int readBuffer_size = 5000;
+        char *readBuffer[readBuffer_size];
         
-        HANDLE standardIn = GetStdHandle(STD_INPUT_HANDLE);
-        bool readSuccess = ReadFile(standardIn, readBuffer, readBuffer_size, &bytesRead, NULL);
-        printf("======bytesRead: %d\n", bytesRead);
-        if (!readSuccess)
         {
-            printf("Could not read from standard in!\n");
+            HANDLE standardIn = GetStdHandle(STD_INPUT_HANDLE);
+            DWORD bytesRead = 0;
+
+            bool readSuccess =
+                ReadFile(
+                    standardIn,
+                    readBuffer,
+                    readBuffer_size,
+                    &bytesRead,
+                    NULL);
+            if (!readSuccess)
+            {
+                printf("Could not read from standard in!\n");
+            }
+
+            CloseHandle(standardIn);
         }
-
-        CloseHandle(standardIn);
-
-        printf("%ls", readBuffer);
+        
+        printf("%s", readBuffer);
     }
     
 
@@ -58,36 +65,45 @@ int main(int argc, char *argv[])
 
 
     printf("via temp file:\n");
-    {
-        const int readBuffer_size = 600;
-        wchar_t *readBuffer[readBuffer_size];
-        DWORD bytesRead = 0;        
-
-        HANDLE tempFile =
-            CreateFile(
-                argv[1],
-                GENERIC_READ,
-                0,
-                NULL,
-                OPEN_EXISTING, 
-                FILE_ATTRIBUTE_NORMAL,
-                NULL);
-        bool readSuccess = ReadFile(tempFile, readBuffer, readBuffer_size, &bytesRead, NULL);
-        if (!readSuccess)
+    {        
+        const int readBuffer_size = 5000;
+        char *readBuffer[readBuffer_size];
+        
         {
-            printf("Could not read from temp file!\n");
-        }
+            HANDLE tempFile =
+                CreateFile(
+                    argv[1],
+                    GENERIC_READ,
+                    0,
+                    NULL,
+                    OPEN_EXISTING, 
+                    FILE_ATTRIBUTE_NORMAL,
+                    NULL);
+            DWORD bytesRead = 0;
 
-        CloseHandle(tempFile);
-        printf("%ls", readBuffer);
+            bool readSuccess =
+                ReadFile(
+                    tempFile,
+                    readBuffer,
+                    readBuffer_size,
+                    &bytesRead,
+                    NULL);
+            if (!readSuccess)
+            {
+            printf("Could not read from temp file!\n");
+            }
+
+            CloseHandle(tempFile);
+        }
+        
+        printf("%s", readBuffer);
+
     }
     
 
 
-    printf("\n\n\nStarting sleep.\n");
-
+    printf("\n\n\nStarting sleep.\n");    
     Sleep(1000);
-
     printf("Ending sleep.\n");
 
     

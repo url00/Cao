@@ -13,6 +13,7 @@
 #include <string>
 #include <fstream>
 #include <iostream>
+#include <assert.h>
 
 #include "Main.h"
 
@@ -442,6 +443,8 @@ WinMain(
 void
 CleanupStuff()
 {
+    // @todo try to delete temp file(s).
+
     UnhookWindowsHookEx(KeyboardHook);
     Shell_NotifyIcon(NIM_DELETE, &IconData);
 
@@ -606,9 +609,10 @@ Run(char *command)
         }
 
         const int text_size = 200000;
+        int text_numBytes = 0;
         char text[text_size];
         {
-            int numBytesConv =
+            text_numBytes =
                 WideCharToMultiByte(
                     CP_UTF8,
                     NULL,      // Must be set to NULL for CP_UTF8?
@@ -618,6 +622,8 @@ Run(char *command)
                     text_size,
                     NULL,      // Must be set to NULL for CP_UTF8.
                     NULL);     // Must be set to NULL for CP_UTF8.
+
+            text[text_numBytes] = '\0';
         }
 
 
@@ -679,16 +685,16 @@ Run(char *command)
                 goto textData_cleanup;
             }
         }       
-
+        
         // Write to the processes' standard in.
         {
-            DWORD numBytesWritten = 0;
+            DWORD inBytesWritten = 0;
             bool writeSuccess =
                 WriteFile(
                     Child_In_Write,
                     text,
-                    strnlen_s(text, 200000),
-                    &numBytesWritten,
+                    text_numBytes,
+                    &inBytesWritten,
                     NULL);
             if (!writeSuccess)
             {
@@ -718,27 +724,24 @@ Run(char *command)
                     FILE_ATTRIBUTE_NORMAL,
                     NULL); 
             
+            DWORD tempBytesWritten = 0;
+            bool writeSuccess =
+                WriteFile(
+                    tempFile,
+                    text,
+                    text_numBytes,
+                    &tempBytesWritten,
+                    NULL);
+            if (!writeSuccess)
             {
-                DWORD numBytesWritten = 0;
-                bool writeSuccess =
-                    WriteFile(
-                        tempFile,
-                        text,
-                        strnlen_s(text, 200000),
-                        &numBytesWritten,
-                        NULL);
-                if (!writeSuccess)
-                {
-                    // @logging log error.
-                    printf("Could not write to temp file!\n");
-                    goto textData_cleanup;
-                }
+                // @logging log error.
+                printf("Could not write to temp file!\n");
+                goto textData_cleanup;
             }
 
             
             CloseHandle(tempFile);
         }
-        
 
 
         // Build command string.
@@ -757,6 +760,15 @@ Run(char *command)
             // Add temp file path as the first argument.
             wcscat_s(commandLine, tempFileNameAndPath);
             wcscat_s(commandLine, L" ");
+
+            /*
+            // Add text_length as second argument.
+            printf("Number of bytes written to in and temp file: %d\n", text_numBytes);
+            wchar_t wideText_numBytes[255];
+            StringCchPrintf(wideText_numBytes, 255, L"%d ", text_numBytes);
+            wcscat_s(commandLine, wideText_numBytes);
+            wcscat_s(commandLine, L" ");
+            */
 
             // Add clipboard data for the remaining arguments.
             wcscat_s(commandLine, wideText);
@@ -1094,6 +1106,8 @@ LaunchedProcessExitedOrCancelled(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
     }
 
     printf("Child exited.\n");
+
+    // @todo delete temp file.
 
     const int pipeBuffer_size = 200000;
     char *pipeBuffer = new char[pipeBuffer_size];
