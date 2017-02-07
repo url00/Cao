@@ -51,10 +51,16 @@ public:
     }
 };
 
+static char Config_CONTROL = 1 << 0;
+static char Config_ALT     = 1 << 1;
+static char Config_SHIFT   = 1 << 2;
+
 static const int name_size = 255;
 static const int command_size = MAX_PATH;
 typedef struct Config
 {
     char name[name_size];
     char command[command_size];
+    char hotkeyMod;
+    char hotkey;
 } Config;

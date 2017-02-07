@@ -71,7 +71,7 @@ void
 LoadConfigFile()
 {
     const int readBuffer_size = 200000;
-    char readBuffer[readBuffer_size];
+    unsigned char readBuffer[readBuffer_size];
     readBuffer[0] = '\0';
     DWORD bytesRead = 0;        
 
@@ -102,9 +102,6 @@ LoadConfigFile()
 
 
 
-    int currentCommandIndex = 0;
-    char *readCharDest = Configs[currentCommandIndex].name;
-    bool readingName = true;
 
 
 
@@ -116,45 +113,132 @@ LoadConfigFile()
     {
         startingOffset = 3;
     }
+    
+    int Configs_i = 0;
 
-    for (int i = startingOffset; i < bytesRead; i++)
+    int lineBuffer_length = 0;
+    const int lineBuffer_size = 200000;
+    char lineBuffer[lineBuffer_size];
+
+    for (int readBuffer_i = startingOffset; readBuffer_i < bytesRead; readBuffer_i++)
     {
-        char currentChar = readBuffer[i];
-        if (currentChar == '"')
-        {
-            if (readingName)
-            {
-                readCharDest = Configs[currentCommandIndex].name;
-            }
-            else
-            {
-                readCharDest = Configs[currentCommandIndex].command;
-            }
-        }
-        else if (currentChar == ':')
-        {
-            readingName = !readingName;
-        }
-        else if (currentChar == '\r')
+        bool isLineReady = false;
+        char readChar = readBuffer[readBuffer_i];
+        if (readChar == '\r')
         {
             // Skip the newline character for \r\n endings.
-            i++;
-            currentCommandIndex++;
-            Configs_count++;
-            readingName = true;
+            readBuffer_i++;
+            lineBuffer[lineBuffer_length] = '\0';
+            isLineReady = true;
         }
-        else if (currentChar == '\n')
+        else if (readChar == '\n')
         {
-            currentCommandIndex++;
-            Configs_count++;
-            readingName = true;
+            lineBuffer[lineBuffer_length] = '\0';
+            isLineReady = true;
         }
         else
         {
-            char charWithNull[2];
-            charWithNull[0] = currentChar;
-            charWithNull[1] = '\0';
-            strcat_s(readCharDest, 255, charWithNull);
+            lineBuffer[lineBuffer_length] = readChar;
+            lineBuffer_length++;
+        }
+
+        if (isLineReady)
+        {
+            Config *currentConfig = &Configs[Configs_i];
+            char *readCharDest = currentConfig->name;
+            const char NAME       = 1 << 0;
+            const char COMMAND    = 1 << 1;
+            const char HOTKEYMOD  = 1 << 2;
+            const char HOTKEY     = 1 << 3;
+            char readMode = NAME;
+
+            for (int lineBuffer_i = 0; lineBuffer_i < lineBuffer_length; lineBuffer_i++)
+            {
+                char lineChar = lineBuffer[lineBuffer_i];
+
+                if (readMode & (NAME | COMMAND))
+                {
+                    if (lineChar == '"')
+                    {
+                        if (readMode & NAME)
+                        {
+                            readCharDest = currentConfig->name;
+                        }
+                        else if (readMode & COMMAND)
+                        {
+                            readCharDest = currentConfig->command;
+                        }
+                    }
+                    else if (lineChar == ':')
+                    {
+                        readMode = COMMAND;
+                    }
+                    else if (lineChar == '=')
+                    {
+                        readMode = HOTKEYMOD;
+                    }
+                    else if (lineChar == '\r' || readChar == '\n')
+                    {
+                    }
+                    else
+                    {
+                        char charWithNull[2];
+                        charWithNull[0] = lineChar;
+                        charWithNull[1] = '\0';
+                        strcat_s(readCharDest, 255, charWithNull);
+                    }
+                }
+                else if (readMode & HOTKEYMOD)
+                {
+                    if (lineChar == 'c')
+                    {
+                        currentConfig->hotkeyMod |= Config_CONTROL;
+                    }
+                    else if (lineChar == 'a')
+                    {
+                        currentConfig->hotkeyMod |= Config_ALT;
+                    }
+                    else if (lineChar == 's')
+                    {
+                        currentConfig->hotkeyMod |= Config_SHIFT;
+                    }
+                    else if (lineChar == ',')
+                    {
+                        readMode = HOTKEY;
+                    }
+                    else
+                    {
+                        // @log err
+                        wchar_t errorMessage[255];
+                        errorMessage[0] = '\0';
+                        StringCchPrintf(errorMessage, 255, L"Invalid config file! Error position: %d:%d", Configs_i + 1, lineBuffer_i + 1);
+
+                        MessageBox(MyWindow, errorMessage, TITLE, MB_OK);
+                        PostQuitMessage(0);
+                        return;
+                    }
+                }
+                else if (readMode & HOTKEY)
+                {
+                    currentConfig->hotkey = lineChar;
+                }
+            }
+            
+            if (!(readMode & (COMMAND | HOTKEY)))
+            {
+                // @log err
+                wchar_t errorMessage[255];
+                errorMessage[0] = '\0';
+                StringCchPrintf(errorMessage, 255, L"Invalid config file! Error line: %d", Configs_i + 1);
+
+                MessageBox(MyWindow, errorMessage, TITLE, MB_OK);
+                PostQuitMessage(0);
+                return;
+            }
+            
+            lineBuffer_length = 0;
+            isLineReady = false;
+            Configs_i++;
         }
     }
 }
@@ -803,22 +887,32 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
             //GetKeyNameText()
                         
             event = input->data.keyboard.Message;
-            unsigned char keyChar = MapVirtualKeyEx(input->data.keyboard.MakeCode, MAPVK_VSC_TO_VK_EX, NULL);
-            if (event == WM_KEYDOWN)
+
+            unsigned char key = MapVirtualKeyEx(input->data.keyboard.MakeCode, MAPVK_VSC_TO_VK_EX, NULL);
+
+            // @todo use keyName for mapping config to a key
+            wchar_t keyName[255];
+            keyName[0] = '\0';
+            GetKeyNameText(input->data.keyboard.MakeCode << 16, keyName, 255);
+
+
+            if (event == WM_KEYDOWN || event == WM_SYSKEYDOWN)
             {
-                if (keyChar == VK_LCONTROL)
+                printf("keyName: %ls\n", keyName);
+                if (key == VK_LCONTROL)
                 {
                     isControlDown = true;
                 }
 
-                if (isControlDown && keyChar == VK_OEM_3)
+                if (isControlDown && key == VK_OEM_3)
                 {
                     printf("Hotkey detected!\n");
+                    RunCancel();
                 }
             }
-            else if (event == WM_KEYUP)
+            else if (event == WM_KEYUP || event == WM_SYSKEYUP)
             {
-                if (keyChar == VK_CONTROL)
+                if (key == VK_LCONTROL)
                 {
                     isControlDown = false;
                 }
