@@ -1,7 +1,11 @@
 #pragma once
 
 int
-WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, char * cmdLine, int cmdShow);
+WinMain(
+    HINSTANCE Instance,
+    HINSTANCE PrevInstance,
+    char * cmdLine,
+    int cmdShow);
 
 void
 CleanupStuff();
@@ -13,21 +17,23 @@ void
 Run(char *command);
 
 LRESULT CALLBACK
-WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam);
+WndProc(
+    HWND Window,
+    UINT message,
+    WPARAM wParam,
+    LPARAM lParam);
 
 LONG WINAPI
 UnexpectedExitHandler(PEXCEPTION_POINTERS pExceptionInfo);
 
 BOOL WINAPI
 ConsoleCtrlHandler(
-    DWORD controlType
-);
+    DWORD controlType);
 
 VOID CALLBACK 
 LaunchedProcessExitedOrCancelled(
     PVOID lpParameter,
-    BOOLEAN TimerOrWaitFired
-);
+    BOOLEAN TimerOrWaitFired);
 
 void
 LoadConfigFile();
@@ -54,12 +60,12 @@ public:
     }
 };
 
-static char Config_CONTROL = 1 << 0;
-static char Config_ALT     = 1 << 1;
-static char Config_SHIFT   = 1 << 2;
+const char Config_CONTROL = 1 << 0;
+const char Config_ALT     = 1 << 1;
+const char Config_SHIFT   = 1 << 2;
 
-static const int name_size = 255;
-static const int command_size = MAX_PATH;
+const int name_size = 255;
+const int command_size = MAX_PATH;
 typedef struct Config
 {
     char name[name_size];

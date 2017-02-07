@@ -36,10 +36,6 @@ static const UINT IconMenu_Exit       = __IconMenu_MessageIdStart + 1;
 
 
 
-static HWND LauncherBox;
-
-
-
 static bool isChildRunning    = false;
 static bool wasChildCancelled = false;
 
@@ -71,7 +67,6 @@ LoadConfigFile()
     const int readBuffer_size = 200000;
     unsigned char readBuffer[readBuffer_size];
     readBuffer[0] = '\0';
-    DWORD bytesRead = 0;        
 
     HANDLE configFile =
         CreateFile(
@@ -82,14 +77,29 @@ LoadConfigFile()
             OPEN_EXISTING, 
             FILE_ATTRIBUTE_NORMAL,
             NULL);
-    bool readSuccess = ReadFile(configFile, readBuffer, readBuffer_size, &bytesRead, NULL);
+
+    DWORD bytesRead = 0;
+    bool readSuccess =
+        ReadFile(
+            configFile,
+            readBuffer,
+            readBuffer_size,
+            &bytesRead,
+            NULL);
     if (!readSuccess)
     {
+        // @log err
         printf("Could not read from config file!\n");
     }
 
-    CloseHandle(configFile);
+    if(!CloseHandle(configFile))
+    {
+        // @log err
+        printf("Could not close config file handle!\n");
+    }
 
+
+    
     if (bytesRead < 3)
     {
         // @log err
@@ -98,22 +108,18 @@ LoadConfigFile()
         return;
     }
 
-
-
-
-
-
     // Detect BOM and move past it.
     int startingOffset = 0;
-    if (readBuffer[0] == 0xef &&
+    bool hasBOM = 
+        readBuffer[0] == 0xef &&
         readBuffer[1] == 0xbb &&
-        readBuffer[2] == 0xbf)
+        readBuffer[2] == 0xbf;
+    if (hasBOM)
     {
         startingOffset = 3;
     }
     
-    int Configs_i = 0;
-
+    
     int lineBuffer_length = 0;
     const int lineBuffer_size = 200000;
     char lineBuffer[lineBuffer_size];
@@ -121,6 +127,7 @@ LoadConfigFile()
     for (int readBuffer_i = startingOffset; readBuffer_i < bytesRead; readBuffer_i++)
     {
         bool isLineReady = false;
+
         char readChar = readBuffer[readBuffer_i];
         if (readChar == '\r')
         {
@@ -142,7 +149,7 @@ LoadConfigFile()
 
         if (isLineReady)
         {
-            Config *currentConfig = &Configs[Configs_i];
+            Config *currentConfig = &Configs[Configs_count];
             char *readCharDest = currentConfig->name;
             const char NAME       = 1 << 0;
             const char COMMAND    = 1 << 1;
@@ -209,7 +216,7 @@ LoadConfigFile()
                         // @log err
                         wchar_t errorMessage[255];
                         errorMessage[0] = '\0';
-                        StringCchPrintf(errorMessage, 255, L"Invalid config file! Error position: %d:%d", Configs_i + 1, lineBuffer_i + 1);
+                        StringCchPrintf(errorMessage, 255, L"Invalid config file! Error position: %d:%d", Configs_count + 1, lineBuffer_i + 1);
 
                         MessageBox(MyWindow, errorMessage, TITLE, MB_OK);
                         PostQuitMessage(0);
@@ -227,7 +234,7 @@ LoadConfigFile()
                 // @log err
                 wchar_t errorMessage[255];
                 errorMessage[0] = '\0';
-                StringCchPrintf(errorMessage, 255, L"Invalid config file! Error line: %d", Configs_i + 1);
+                StringCchPrintf(errorMessage, 255, L"Invalid config file! Error line: %d", Configs_count + 1);
 
                 MessageBox(MyWindow, errorMessage, TITLE, MB_OK);
                 PostQuitMessage(0);
@@ -236,7 +243,6 @@ LoadConfigFile()
             
             lineBuffer_length = 0;
             isLineReady = false;
-            Configs_i++;
             Configs_count++;
         }
     }
@@ -410,21 +416,6 @@ WinMain(
 
 
 
-    // Set up combobox
-    LauncherBox =
-        CreateWindow(
-            WC_COMBOBOX,
-            L"",
-            CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
-            0, 0, 
-            1000, 100, 
-            MyWindow,
-            NULL,
-            Instance,
-            NULL);
-
-
-
     // Set up raw input.
     rawKeyboard.dwFlags     = RIDEV_NOLEGACY | RIDEV_INPUTSINK;
     rawKeyboard.usUsagePage = 1;
@@ -473,8 +464,9 @@ CleanupStuff()
 void
 TerminateChild()
 {    
-    if (ChildProcInfo.hProcess != NULL)
+    if (ChildProcInfo.hProcess != NULL && ChildProcInfo.hProcess != INVALID_HANDLE_VALUE)
     {
+        // TerminateProcess closes the handle.
         if(TerminateProcess(ChildProcInfo.hProcess, 0))
         {
             isChildRunning = false;
@@ -483,31 +475,51 @@ TerminateChild()
         {
             // @log error terminating process
             printf("Couldn't terminate process!\n");
-        }         
+
+            if(!CloseHandle(ChildProcInfo.hProcess)) printf("Couldn't close handle to child process!\n");
+
+            ChildProcInfo = { 0 };
+        } 
 
 
         if (Child_In_Read != NULL && Child_In_Read != INVALID_HANDLE_VALUE)
         {
-            if(!CloseHandle(Child_In_Read)) printf("Couldn't close Child_In_Read!\n");
-            else Child_In_Read = NULL;
+            if(!CloseHandle(Child_In_Read))
+            {
+                printf("Couldn't close Child_In_Read!\n");
+            }
+
+            Child_In_Read = NULL;
         }
 
         if (Child_In_Write != NULL && Child_In_Write != INVALID_HANDLE_VALUE)
         {
-            if(!CloseHandle(Child_In_Write)) printf("Couldn't close Child_In_Write!\n");
-            else Child_In_Write = NULL;
+            if(!CloseHandle(Child_In_Write))
+            {
+                printf("Couldn't close Child_In_Write!\n");
+            }
+
+            Child_In_Write = NULL;
         }
 
         if (Child_Out_Read != NULL && Child_Out_Read != INVALID_HANDLE_VALUE)
         {
-            if(!CloseHandle(Child_Out_Read)) printf("Couldn't close Child_Out_Read!\n");
-            else Child_Out_Read = NULL;
+            if(!CloseHandle(Child_Out_Read))
+            {
+                printf("Couldn't close Child_Out_Read!\n");
+            }
+
+            Child_Out_Read = NULL;
         }
 
         if (Child_Out_Write != NULL && Child_Out_Write != INVALID_HANDLE_VALUE)
         {
-            if(!CloseHandle(Child_Out_Write)) printf("Couldn't close Child_Out_Write!\n");
-            else Child_Out_Write = NULL;
+            if(!CloseHandle(Child_Out_Write))
+            {
+                printf("Couldn't close Child_Out_Write!\n");
+            }
+
+            Child_Out_Write = NULL;
         }
     }
 }
@@ -539,10 +551,8 @@ Run(char *command)
     printf("Running.\n");
     
     // Get clipboard data.
-    // Try to open the clipboard.
     if (!OpenClipboard(MyWindow))
     {
-        // On failure, give up;
         // @log err.
         printf("Couldn't open the clipboard!\n");
         return;
@@ -558,7 +568,6 @@ Run(char *command)
     UINT firstFormat = EnumClipboardFormats(0);
     UINT currentFormat = firstFormat;
     bool isText = false;
-    bool isBitmap = false;
     do
     {
         switch (currentFormat)
@@ -569,12 +578,6 @@ Run(char *command)
                 break;
             }
 
-            case CF_DIB:
-            {
-                isBitmap = true;
-                break;
-            }
-
             default:
             {
                 currentFormat = EnumClipboardFormats(currentFormat);
@@ -582,7 +585,7 @@ Run(char *command)
             }
         }
 
-    } while (currentFormat != firstFormat && !isText && !isBitmap);
+    } while (currentFormat != firstFormat && !isText);
     
 
 
@@ -591,18 +594,23 @@ Run(char *command)
         HGLOBAL textDataHandle = GetClipboardData(CF_UNICODETEXT);
         if (textDataHandle == NULL)
         {
+            // @log err
             goto textData_cleanup;
         }
 
         wchar_t *wideText = static_cast<wchar_t*>(GlobalLock(textDataHandle));
         if (wideText == NULL)
         {
+            // @log err
             goto textData_cleanup;
         }
 
         char text[200000];
-        size_t numCharsConverted = 0;
-        wcstombs_s(&numCharsConverted, text, wideText, _TRUNCATE);
+        {
+            // @bug can't convert some text, try copying the comments section of youtube
+            size_t numBytesConv = 0;
+            wcstombs_s(&numBytesConv, text, wideText, _TRUNCATE);
+        }
 
 
         // Start of child process creation.
@@ -651,7 +659,11 @@ Run(char *command)
                 goto textData_cleanup;
             }
 
-            bool setPipeFlagSuccess = SetHandleInformation(Child_Out_Read, HANDLE_FLAG_INHERIT, 0);
+            bool setPipeFlagSuccess =
+                SetHandleInformation(
+                    Child_Out_Read,
+                    HANDLE_FLAG_INHERIT,
+                    0);
             if (!setPipeFlagSuccess)
             {
                 // @logging log error.
@@ -662,8 +674,14 @@ Run(char *command)
 
         // Write to the processes' standard in.
         {
-            DWORD bytesWritten = 0;
-            bool writeSuccess = WriteFile(Child_In_Write, text, strnlen_s(text, 200000), &bytesWritten, NULL);
+            DWORD numBytesWritten = 0;
+            bool writeSuccess =
+                WriteFile(
+                    Child_In_Write,
+                    text,
+                    strnlen_s(text, 200000),
+                    &numBytesWritten,
+                    NULL);
             if (!writeSuccess)
             {
                 // @logging log error.
@@ -692,13 +710,21 @@ Run(char *command)
                     FILE_ATTRIBUTE_NORMAL,
                     NULL); 
             
-            DWORD bytesWritten = 0;
-            bool writeSuccess = WriteFile(tempFile, text, strnlen_s(text, 200000), &bytesWritten, NULL);
-            if (!writeSuccess)
             {
-                // @logging log error.
-                printf("Could not write to temp file!\n");
-                goto textData_cleanup;
+                DWORD numBytesWritten = 0;
+                bool writeSuccess =
+                    WriteFile(
+                        tempFile,
+                        text,
+                        strnlen_s(text, 200000),
+                        &numBytesWritten,
+                        NULL);
+                if (!writeSuccess)
+                {
+                    // @logging log error.
+                    printf("Could not write to temp file!\n");
+                    goto textData_cleanup;
+                }
             }
 
             
