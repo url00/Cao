@@ -10,7 +10,7 @@ void
 Cancel();
 
 void
-Run(char * command);
+Run(char *command);
 
 LRESULT CALLBACK
 WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam);
