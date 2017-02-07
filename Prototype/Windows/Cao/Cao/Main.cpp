@@ -608,6 +608,8 @@ Run(char *command)
         char text[200000];
         {
             // @bug can't convert some text, try copying the comments section of youtube
+            // Maybe try this?
+            //int result = WideCharToMultiByte(NULL, )
             size_t numBytesConv = 0;
             wcstombs_s(&numBytesConv, text, wideText, _TRUNCATE);
         }
