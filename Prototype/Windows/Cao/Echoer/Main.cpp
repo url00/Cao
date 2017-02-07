@@ -34,12 +34,13 @@ int main(int argc, char *argv[])
 
     printf("via stdin:\n");
     {
-        const int readBuffer_size = 200000;
-        wchar_t *readBuffer = new wchar_t[readBuffer_size];
+        const int readBuffer_size = 600;
+        wchar_t *readBuffer[readBuffer_size];
         DWORD bytesRead = 0;
         
         HANDLE standardIn = GetStdHandle(STD_INPUT_HANDLE);
         bool readSuccess = ReadFile(standardIn, readBuffer, readBuffer_size, &bytesRead, NULL);
+        printf("======bytesRead: %d\n", bytesRead);
         if (!readSuccess)
         {
             printf("Could not read from standard in!\n");
@@ -58,8 +59,8 @@ int main(int argc, char *argv[])
 
     printf("via temp file:\n");
     {
-        const int readBuffer_size = 200000;
-        wchar_t *readBuffer = new wchar_t[readBuffer_size];
+        const int readBuffer_size = 600;
+        wchar_t *readBuffer[readBuffer_size];
         DWORD bytesRead = 0;        
 
         HANDLE tempFile =
