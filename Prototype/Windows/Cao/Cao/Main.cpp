@@ -760,16 +760,7 @@ Run(char *command)
             // Add temp file path as the first argument.
             wcscat_s(commandLine, tempFileNameAndPath);
             wcscat_s(commandLine, L" ");
-
-            /*
-            // Add text_length as second argument.
-            printf("Number of bytes written to in and temp file: %d\n", text_numBytes);
-            wchar_t wideText_numBytes[255];
-            StringCchPrintf(wideText_numBytes, 255, L"%d ", text_numBytes);
-            wcscat_s(commandLine, wideText_numBytes);
-            wcscat_s(commandLine, L" ");
-            */
-
+            
             // Add clipboard data for the remaining arguments.
             wcscat_s(commandLine, wideText);
         }
