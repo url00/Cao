@@ -799,21 +799,14 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
                    input->data.keyboard.VKey);
             */
 
+
+            //GetKeyNameText()
+                        
             event = input->data.keyboard.Message;
-            unsigned char keyChar = input->data.keyboard.VKey;
-
-
-
-        buffer_cleanup:
-            delete[] buffer;
-            buffer = NULL;
-            input  = NULL;
-
-
-            
+            unsigned char keyChar = MapVirtualKeyEx(input->data.keyboard.MakeCode, MAPVK_VSC_TO_VK_EX, NULL);
             if (event == WM_KEYDOWN)
             {
-                if (keyChar == VK_CONTROL)
+                if (keyChar == VK_LCONTROL)
                 {
                     isControlDown = true;
                 }
@@ -830,6 +823,13 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
                     isControlDown = false;
                 }
             }
+
+
+
+        buffer_cleanup:
+            delete[] buffer;
+            buffer = NULL;
+            input  = NULL;
 
 
 
