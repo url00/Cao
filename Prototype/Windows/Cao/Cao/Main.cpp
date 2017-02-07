@@ -513,13 +513,26 @@ TerminateChild()
 }
 
 void
-RunCancel(char *command)
+Cancel()
+{
+    if (!isChildRunning)
+    {
+        printf("Nothing to cancel.\n");
+        return;
+    }
+
+    
+    printf("Attempting to stop...\n");
+    wasChildCancelled = true;
+    TerminateChild();
+    return;
+}
+
+void
+Run(char *command)
 {
     if (isChildRunning)
     {
-        printf("Child still running! Attempting to stop...\n");
-        wasChildCancelled = true;
-        TerminateChild();
         return;
     }
 
@@ -811,7 +824,14 @@ HandleIconMessage(LPARAM message)
 
                 case IconMenu_RunCancel:
                 {
-                    RunCancel(Configs[0].command);
+                    if (isChildRunning)
+                    {
+                        Cancel();
+                    }
+                    else
+                    {
+                        Run(Configs[0].command);
+                    }
                     break;
                 }
             }
@@ -881,25 +901,29 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
                    input->data.keyboard.Message,
                    input->data.keyboard.VKey);
             */
-
-
-            //GetKeyNameText()
-                        
+                                    
             event = input->data.keyboard.Message;
 
+            // Build a comparable key name from the keyboard's scan code.
+            // @todo clean up
             unsigned char key = MapVirtualKeyEx(input->data.keyboard.MakeCode, MAPVK_VSC_TO_VK_EX, NULL);
-
-            // @todo use keyName for mapping config to a key
             wchar_t wideKeyName[255];
             wideKeyName[0] = '\0';
             GetKeyNameText(input->data.keyboard.MakeCode << 16, wideKeyName, 255);
-            size_t numConv = 0;
+            size_t numBytesConv = 0;
             char keyName[255];
-            wcstombs_s(&numConv, keyName, 255, wideKeyName, 255);
+            wcstombs_s(&numBytesConv, keyName, 255, wideKeyName, 255);
+            char keyLetter = -1;
+            const int sizeOfSingleWideChar = 2;
+            if (numBytesConv == sizeOfSingleWideChar)
+            {
+                keyLetter = tolower(keyName[0]);
+            }
 
 
             if (event == WM_KEYDOWN || event == WM_SYSKEYDOWN)
             {
+
                 if (key == VK_LCONTROL || key == VK_RCONTROL)
                 {
                     modState |= Config_CONTROL;
@@ -913,16 +937,21 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
                     modState |= Config_ALT;
                 }
 
+                // @todo don't hard code the cancel command.
+                if (modState == (Config_CONTROL | Config_SHIFT | Config_ALT) &&
+                    keyLetter == 'c')
+                {
+                    Cancel();
+                }
+
                 for (int Configs_i = 0; Configs_i < Configs_count; Configs_i++)
                 {
                     Config *currentConfig = &Configs[Configs_i];
-
+                    
                     if (modState == currentConfig->hotkeyMod &&
-                        currentConfig->hotkey == keyName[0] + 0x20)
+                        currentConfig->hotkey == keyLetter)
                     {
-                        printf("Hotkey detected!\n");
-                        //printf("You hit the configured hotkey!\n");
-                        RunCancel(currentConfig->command);
+                        Run(currentConfig->command);
                     }
                 }
 
@@ -940,7 +969,7 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
                 else if (key == VK_LMENU || key == VK_RMENU || key == VK_MENU)
                 {
                     modState &= ~Config_ALT;
-                }
+                };
             }
 
 
