@@ -7,7 +7,7 @@ void
 CleanupStuff();
 
 void
-RunCancel();
+RunCancel(char * command);
 
 LRESULT CALLBACK
 WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam);

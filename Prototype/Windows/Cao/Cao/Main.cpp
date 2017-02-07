@@ -239,6 +239,7 @@ LoadConfigFile()
             lineBuffer_length = 0;
             isLineReady = false;
             Configs_i++;
+            Configs_count++;
         }
     }
 }
@@ -514,7 +515,7 @@ TerminateChild()
 }
 
 void
-RunCancel()
+RunCancel(char *command)
 {
     if (isChildRunning)
     {
@@ -704,7 +705,7 @@ RunCancel()
             // Add command as zeroith argument.
             wchar_t convertedCommand[command_size];
             size_t numConverted = 0;
-            mbstowcs_s(&numConverted, convertedCommand, Configs[currentConfigIndex].command, _TRUNCATE);
+            mbstowcs_s(&numConverted, convertedCommand, command, _TRUNCATE);
             wcscat_s(commandLine, convertedCommand);
             wcscat_s(commandLine, L" ");
 
@@ -812,7 +813,7 @@ HandleIconMessage(LPARAM message)
 
                 case IconMenu_RunCancel:
                 {
-                    RunCancel();
+                    RunCancel(Configs[0].command);
                     break;
                 }
             }
@@ -891,14 +892,17 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
             unsigned char key = MapVirtualKeyEx(input->data.keyboard.MakeCode, MAPVK_VSC_TO_VK_EX, NULL);
 
             // @todo use keyName for mapping config to a key
-            wchar_t keyName[255];
-            keyName[0] = '\0';
-            GetKeyNameText(input->data.keyboard.MakeCode << 16, keyName, 255);
+            wchar_t wideKeyName[255];
+            wideKeyName[0] = '\0';
+            GetKeyNameText(input->data.keyboard.MakeCode << 16, wideKeyName, 255);
+            size_t numConv = 0;
+            char keyName[255];
+            wcstombs_s(&numConv, keyName, 255, wideKeyName, 255);
 
 
             if (event == WM_KEYDOWN || event == WM_SYSKEYDOWN)
             {
-                printf("keyName: %ls\n", keyName);
+                //printf("keyName: %ls\n", keyName);
                 if (key == VK_LCONTROL)
                 {
                     isControlDown = true;
@@ -907,8 +911,18 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
                 if (isControlDown && key == VK_OEM_3)
                 {
                     printf("Hotkey detected!\n");
-                    RunCancel();
+                    RunCancel(Configs[0].command);
                 }
+
+                for (int Configs_i = 0; Configs_i < Configs_count; Configs_i++)
+                {
+                    Config *currentConfig = &Configs[Configs_i];
+                    if (currentConfig->hotkey == keyName[0])
+                    {
+                        printf("You hit the configured hotkey!\n");
+                    }
+                }
+
             }
             else if (event == WM_KEYUP || event == WM_SYSKEYUP)
             {
