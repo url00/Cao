@@ -61,9 +61,7 @@ Config Configs[Configs_size];
 
 
 static RAWINPUTDEVICE rawKeyboard = { 0 };
-static bool isControlDown = false;
-static bool isShiftDown   = false;
-static bool isAltDown     = false;
+static char modState = 0;
 
 
 
@@ -902,33 +900,46 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
 
             if (event == WM_KEYDOWN || event == WM_SYSKEYDOWN)
             {
-                //printf("keyName: %ls\n", keyName);
-                if (key == VK_LCONTROL)
+                if (key == VK_LCONTROL || key == VK_RCONTROL)
                 {
-                    isControlDown = true;
+                    modState |= Config_CONTROL;
                 }
-
-                if (isControlDown && key == VK_OEM_3)
+                else if (key == VK_LSHIFT || key == VK_RSHIFT)
                 {
-                    printf("Hotkey detected!\n");
-                    RunCancel(Configs[0].command);
+                    modState |= Config_SHIFT;
+                }
+                else if (key == VK_LMENU || key == VK_RMENU || key == VK_MENU)
+                {
+                    modState |= Config_ALT;
                 }
 
                 for (int Configs_i = 0; Configs_i < Configs_count; Configs_i++)
                 {
                     Config *currentConfig = &Configs[Configs_i];
-                    if (currentConfig->hotkey == keyName[0])
+
+                    if (modState == currentConfig->hotkeyMod &&
+                        currentConfig->hotkey == keyName[0] + 0x20)
                     {
-                        printf("You hit the configured hotkey!\n");
+                        printf("Hotkey detected!\n");
+                        //printf("You hit the configured hotkey!\n");
+                        RunCancel(currentConfig->command);
                     }
                 }
 
             }
             else if (event == WM_KEYUP || event == WM_SYSKEYUP)
-            {
-                if (key == VK_LCONTROL)
+            {       
+                if (key == VK_LCONTROL || key == VK_RCONTROL)
                 {
-                    isControlDown = false;
+                    modState &= ~Config_CONTROL;
+                }
+                else if (key == VK_LSHIFT || key == VK_RSHIFT)
+                {
+                    modState &= ~Config_SHIFT;
+                }
+                else if (key == VK_LMENU || key == VK_RMENU || key == VK_MENU)
+                {
+                    modState &= ~Config_ALT;
                 }
             }
 
