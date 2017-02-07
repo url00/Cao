@@ -605,13 +605,19 @@ Run(char *command)
             goto textData_cleanup;
         }
 
-        char text[200000];
+        const int text_size = 200000;
+        char text[text_size];
         {
-            // @bug can't convert some text, try copying the comments section of youtube
-            // Maybe try this?
-            //int result = WideCharToMultiByte(NULL, )
-            size_t numBytesConv = 0;
-            wcstombs_s(&numBytesConv, text, wideText, _TRUNCATE);
+            int numBytesConv =
+                WideCharToMultiByte(
+                    CP_UTF8,
+                    NULL,      // Must be set to NULL for CP_UTF8?
+                    wideText,
+                    -1,        // Null terminated, so no size needed.
+                    text,
+                    text_size,
+                    NULL,      // Must be set to NULL for CP_UTF8.
+                    NULL);     // Must be set to NULL for CP_UTF8.
         }
 
 
