@@ -789,10 +789,14 @@ Run(char *command)
 
             
         
-            // Need to write to standard in in chuncks...? Still "crashing" on simple cat, but not cat | grep.
+            // Need to write to standard in in chuncks...? Still "crashing" on simple cat, but not cat | grep
+            // POSSIBLE FIX: It seems that the Child_Out pipe is filling up, which is causing cat to crash.
+            //               cat > test.txt runs fine.
+            //               But if that's the case, why does pseudo-buffering these writes seem to work with some commands?
+            //               Really, nothing should be comsumed until CloseHandle is called... not sure.
             {
                 int bytesLeftToWrite = text_numBytes;
-                while (bytesLeftToWrite > 256)
+                while (bytesLeftToWrite > 128)
                 {
                     int startingOffset = text_numBytes - bytesLeftToWrite;
                     DWORD inBytesWritten = 0;
@@ -800,7 +804,7 @@ Run(char *command)
                         WriteFile(
                             Child_In_Write,
                             text + startingOffset,
-                            256,
+                            128,
                             &inBytesWritten,
                             NULL);
                     if (!writeSuccess)
