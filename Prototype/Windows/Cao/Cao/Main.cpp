@@ -686,24 +686,6 @@ Run(char *command)
             }
         }       
         
-        // Write to the processes' standard in.
-        {
-            DWORD inBytesWritten = 0;
-            bool writeSuccess =
-                WriteFile(
-                    Child_In_Write,
-                    text,
-                    text_numBytes,
-                    &inBytesWritten,
-                    NULL);
-            if (!writeSuccess)
-            {
-                // @logging log error.
-                printf("Could not write to child's standard in!\n");
-                goto textData_cleanup;
-            }
-        }
-        
         wchar_t tempFileNameAndPath[MAX_PATH];
         {
             TCHAR tempPath[MAX_PATH];
@@ -804,6 +786,56 @@ Run(char *command)
             // newHandle is always 0x00000000 so I'm assuming I don't need to clean it up.
             HANDLE newHandle;
             RegisterWaitForSingleObject(&newHandle, ChildProcInfo.hProcess, LaunchedProcessExitedOrCancelled, NULL, INFINITE, WT_EXECUTEONLYONCE);
+
+            
+        
+            // Need to write to standard in in chuncks...? Still "crashing" on simple cat, but not cat | grep.
+            {
+                int bytesLeftToWrite = text_numBytes;
+                while (bytesLeftToWrite > 256)
+                {
+                    int startingOffset = text_numBytes - bytesLeftToWrite;
+                    DWORD inBytesWritten = 0;
+                    bool writeSuccess =
+                        WriteFile(
+                            Child_In_Write,
+                            text + startingOffset,
+                            256,
+                            &inBytesWritten,
+                            NULL);
+                    if (!writeSuccess)
+                    {
+                        // @logging log error.
+                        printf("Could not write to child's standard in!\n");
+                        goto textData_cleanup;
+                    }
+
+                    bytesLeftToWrite -= inBytesWritten;
+                }
+
+                assert(bytesLeftToWrite >= 0);
+
+                if (bytesLeftToWrite > 0)
+                {                    
+                    int startingOffset = text_numBytes - bytesLeftToWrite;
+                    DWORD inBytesWritten = 0;
+                    bool writeSuccess =
+                        WriteFile(
+                            Child_In_Write,
+                            text + startingOffset,
+                            bytesLeftToWrite,
+                            &inBytesWritten,
+                            NULL);
+                    if (!writeSuccess)
+                    {
+                        // @logging log error.
+                        printf("Could not write to child's standard in!\n");
+                        goto textData_cleanup;
+                    }
+                }
+
+
+            }
 
             CloseHandle(Child_In_Write);
         }
