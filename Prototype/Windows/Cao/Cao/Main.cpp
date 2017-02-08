@@ -142,6 +142,33 @@ LoadConfigFile()
             lineBuffer[lineBuffer_length] = '\0';
             isLineReady = true;
         }
+        else if (readChar == '#')
+        {
+            // Skip rest of line.
+            while (readBuffer_i < bytesRead)
+            {
+                char readChar = readBuffer[readBuffer_i];
+                if (readChar == '\r')
+                {
+                    // Skip the newline character for \r\n endings.
+                    readBuffer_i++;
+                    lineBuffer[lineBuffer_length] = '\0';
+                    break;
+                }
+                else if (readChar == '\n')
+                {
+                    lineBuffer[lineBuffer_length] = '\0';
+                    break;
+                }
+
+                readBuffer_i++;
+            }
+
+            if (lineBuffer_length > 0)
+            {
+                isLineReady = true;
+            }
+        }
         else
         {
             lineBuffer[lineBuffer_length] = readChar;
@@ -253,6 +280,9 @@ LoadConfigFile()
                 else if (readMode & HOTKEY)
                 {
                     currentConfig->hotkey = lineChar;
+
+                    // Once we've read the hotkey, no need to continue reading.
+                    break;
                 }
             }
             
@@ -269,7 +299,6 @@ LoadConfigFile()
             }
             
             lineBuffer_length = 0;
-            isLineReady = false;
             Configs_count++;
         }
     }
@@ -666,7 +695,7 @@ Run(Config *config)
                     &Child_In_Read,
                     &Child_In_Write,
                     &secAttr,
-                    text_size);
+                    text_size); // If this buffer size "suggestion" isn't good enough, try CreateNamedPipe.
             if (!createPipeSuccess)
             {
                 // @logging log error.
