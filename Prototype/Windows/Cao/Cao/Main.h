@@ -1,5 +1,25 @@
 #pragma once
 
+// @todo enums
+const char Config_CONTROL = 1 << 0;
+const char Config_ALT     = 1 << 1;
+const char Config_SHIFT   = 1 << 2;
+
+const char Config_STANDARD = 1 << 0;
+const char Config_TEMPFILE = 1 << 1;
+const char Config_ARGS      = 1 << 2;
+
+const int name_size = 255;
+const int command_size = MAX_PATH;
+typedef struct Config
+{
+    char name[name_size];
+    char command[command_size];
+    char inputMode;
+    char hotkeyMod;
+    char hotkey;
+} Config;
+
 int
 WinMain(
     HINSTANCE Instance,
@@ -14,7 +34,7 @@ void
 Cancel();
 
 void
-Run(char *command);
+Run(Config *config);
 
 LRESULT CALLBACK
 WndProc(
@@ -59,17 +79,3 @@ public:
         return fputc(c, stdout) == EOF ? traits_type::eof() : c;
     }
 };
-
-const char Config_CONTROL = 1 << 0;
-const char Config_ALT     = 1 << 1;
-const char Config_SHIFT   = 1 << 2;
-
-const int name_size = 255;
-const int command_size = MAX_PATH;
-typedef struct Config
-{
-    char name[name_size];
-    char command[command_size];
-    char hotkeyMod;
-    char hotkey;
-} Config;

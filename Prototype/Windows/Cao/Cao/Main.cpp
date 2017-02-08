@@ -151,11 +151,14 @@ LoadConfigFile()
         if (isLineReady)
         {
             Config *currentConfig = &Configs[Configs_count];
+            currentConfig->inputMode = Config_STANDARD;
+
             char *readCharDest = currentConfig->name;
             const char NAME       = 1 << 0;
             const char COMMAND    = 1 << 1;
-            const char HOTKEYMOD  = 1 << 2;
-            const char HOTKEY     = 1 << 3;
+            const char INPUT      = 1 << 2;
+            const char HOTKEYMOD  = 1 << 3;
+            const char HOTKEY     = 1 << 4;
             char readMode = NAME;
 
             for (int lineBuffer_i = 0; lineBuffer_i < lineBuffer_length; lineBuffer_i++)
@@ -179,6 +182,10 @@ LoadConfigFile()
                     {
                         readMode = COMMAND;
                     }
+                    else if (lineChar == '/')
+                    {
+                        readMode = INPUT;
+                    }
                     else if (lineChar == '=')
                     {
                         readMode = HOTKEYMOD;
@@ -192,6 +199,25 @@ LoadConfigFile()
                         charWithNull[0] = lineChar;
                         charWithNull[1] = '\0';
                         strcat_s(readCharDest, 255, charWithNull);
+                    }
+                }
+                else if (readMode & INPUT)
+                {
+                    if (lineChar == 's')
+                    {
+                        currentConfig->inputMode |= Config_STANDARD;
+                    }
+                    else if (lineChar == 'a')
+                    {
+                        currentConfig->inputMode |= Config_ARGS;
+                    }
+                    else if (lineChar == 't')
+                    {
+                        currentConfig->inputMode |= Config_TEMPFILE;
+                    }
+                    else if (lineChar == '=')
+                    {
+                        readMode = HOTKEYMOD;
                     }
                 }
                 else if (readMode & HOTKEYMOD)
@@ -544,7 +570,7 @@ Cancel()
 }
 
 void
-Run(char *command)
+Run(Config *config)
 {
     if (isChildRunning)
     {
@@ -684,10 +710,23 @@ Run(char *command)
                 printf("Could not set standard out pipe information!\n");
                 goto textData_cleanup;
             }
-        }       
+        }
         
-        wchar_t tempFileNameAndPath[MAX_PATH];
+        const int commandLine_size = 200000;
+        wchar_t commandLine[commandLine_size];
+        commandLine[0] = '\0';
+        // Add command as zeroith argument.
+        wchar_t convertedCommand[command_size];
+        size_t numConverted = 0;
+        mbstowcs_s(&numConverted, convertedCommand, config->command, _TRUNCATE);
+        wcscat_s(commandLine, L"cmd /C \"");
+        wcscat_s(commandLine, convertedCommand);
+        
+        if (config->inputMode & Config_TEMPFILE)
         {
+            wcscat_s(commandLine, L" ");
+
+            wchar_t tempFileNameAndPath[MAX_PATH];
             TCHAR tempPath[MAX_PATH];
             GetTempPath(MAX_PATH, tempPath);
         
@@ -723,34 +762,23 @@ Run(char *command)
 
             
             CloseHandle(tempFile);
-        }
-
-
-        // Build command string.
-        const int commandLine_size = 200000;
-        wchar_t commandLine[commandLine_size];
-        commandLine[0] = '\0';
-
-        {
-            // Add command as zeroith argument.
-            wchar_t convertedCommand[command_size];
-            size_t numConverted = 0;
-            mbstowcs_s(&numConverted, convertedCommand, command, _TRUNCATE);
-            wcscat_s(commandLine, L"cmd /C \"");
-            wcscat_s(commandLine, convertedCommand);
-            wcscat_s(commandLine, L"\"");
-
-            /*
+            
             // Add temp file path as the first argument.
             wcscat_s(commandLine, tempFileNameAndPath);
             wcscat_s(commandLine, L" ");
-            
+        }        
+
+        if (config->inputMode & Config_ARGS)
+        {
+            wcscat_s(commandLine, L" ");
+
             // Add clipboard data for the remaining arguments.
             wcscat_s(commandLine, wideText);
-            */
-
-            printf("commandLine: %ls\n", commandLine);
         }
+        
+        wcscat_s(commandLine, L"\"");
+
+        printf("commandLine: %ls\n", commandLine);
 
 
   
@@ -788,11 +816,11 @@ Run(char *command)
             RegisterWaitForSingleObject(&newHandle, ChildProcInfo.hProcess, LaunchedProcessExitedOrCancelled, NULL, INFINITE, WT_EXECUTEONLYONCE);
 
             
-                   
+
             // Need to write to standard in in chuncks...?
             // Why does pseudo-buffering these writes work with some commands?
-            // Really, nothing should be comsumed until CloseHandle is called... not sure.
-            // cat must consume some stuff as it's written, but wait to execute until the handle is closed?
+            // This shouldn't work here, yet it does. Why?
+            if (config->inputMode & Config_STANDARD)
             {
                 int bytesLeftToWrite = text_numBytes;
                 while (bytesLeftToWrite > 128)
@@ -837,6 +865,7 @@ Run(char *command)
                     }
                 }
             }
+
 
             CloseHandle(Child_In_Write);
         }
@@ -907,7 +936,7 @@ HandleIconMessage(LPARAM message)
                     }
                     else
                     {
-                        Run(Configs[0].command);
+                        Run(&Configs[0]);
                     }
                     break;
                 }
@@ -1028,7 +1057,7 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
                     if (modState == currentConfig->hotkeyMod &&
                         currentConfig->hotkey == keyLetter)
                     {
-                        Run(currentConfig->command);
+                        Run(currentConfig);
                     }
                 }
 

@@ -1,4 +1,4 @@
-﻿"echoer":"..\Debug\Echoer.exe"=cas,`
-"cat":"cat -v"=cas,x
+﻿"echoer":"..\Debug\Echoer.exe"/st=cas,`
+"cat":"cat -v | sed 's/^M$//'"=cas,x
 "linenums":"linenums.bat"=cas,a
-"simple grep":"cat -v | grep -e uffer"=cas,s
+"simple grep":"cat -v | sed 's/^M$//' | grep -e uffer"=cas,s
