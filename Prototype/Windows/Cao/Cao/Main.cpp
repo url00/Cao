@@ -194,7 +194,7 @@ LoadConfigFile()
 
                 if (readMode & (NAME | COMMAND))
                 {
-                    if (lineChar == '"')
+                    if (lineChar == '~')
                     {
                         if (readMode & NAME)
                         {

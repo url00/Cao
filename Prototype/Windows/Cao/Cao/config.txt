@@ -1,5 +1,7 @@
 ﻿# comment test
-"echoer":"..\Debug\Echoer.exe"/st=cas,` # another test
-"cat":"cat -v"=cas,x
-"linenums":"linenums.bat"=cas,a
-"simple grep":"cat -v | grep -e uffer"=cas,s
+~echoer~:~..\Debug\Echoer.exe~/st=cas,` # another test
+~cat~:~cat -v~=cas,x
+~linenums~:~awk '{print FNR "\t" $0}'~=cas,a
+~simple grep~:~cat -v | grep -e uffer~=cas,s
+#flip things around, so it will look like this
+#cas,`=some name here~everything after a ~ is interprted as a command
