@@ -754,15 +754,20 @@ Run(char *command)
             wchar_t convertedCommand[command_size];
             size_t numConverted = 0;
             mbstowcs_s(&numConverted, convertedCommand, command, _TRUNCATE);
+            wcscat_s(commandLine, L"cmd /C \"");
             wcscat_s(commandLine, convertedCommand);
-            wcscat_s(commandLine, L" ");
+            wcscat_s(commandLine, L"\"");
 
+            /*
             // Add temp file path as the first argument.
             wcscat_s(commandLine, tempFileNameAndPath);
             wcscat_s(commandLine, L" ");
             
             // Add clipboard data for the remaining arguments.
             wcscat_s(commandLine, wideText);
+            */
+
+            printf("commandLine: %ls\n", commandLine);
         }
 
 
@@ -799,6 +804,8 @@ Run(char *command)
             // newHandle is always 0x00000000 so I'm assuming I don't need to clean it up.
             HANDLE newHandle;
             RegisterWaitForSingleObject(&newHandle, ChildProcInfo.hProcess, LaunchedProcessExitedOrCancelled, NULL, INFINITE, WT_EXECUTEONLYONCE);
+
+            CloseHandle(Child_In_Write);
         }
         
     textData_cleanup:
