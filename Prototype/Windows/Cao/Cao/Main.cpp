@@ -788,12 +788,11 @@ Run(char *command)
             RegisterWaitForSingleObject(&newHandle, ChildProcInfo.hProcess, LaunchedProcessExitedOrCancelled, NULL, INFINITE, WT_EXECUTEONLYONCE);
 
             
-        
-            // Need to write to standard in in chuncks...? Still "crashing" on simple cat, but not cat | grep
-            // POSSIBLE FIX: It seems that the Child_Out pipe is filling up, which is causing cat to crash.
-            //               cat > test.txt runs fine.
-            //               But if that's the case, why does pseudo-buffering these writes seem to work with some commands?
-            //               Really, nothing should be comsumed until CloseHandle is called... not sure.
+                   
+            // Need to write to standard in in chuncks...?
+            // Why does pseudo-buffering these writes work with some commands?
+            // Really, nothing should be comsumed until CloseHandle is called... not sure.
+            // cat must consume some stuff as it's written, but wait to execute until the handle is closed?
             {
                 int bytesLeftToWrite = text_numBytes;
                 while (bytesLeftToWrite > 128)
@@ -837,8 +836,6 @@ Run(char *command)
                         goto textData_cleanup;
                     }
                 }
-
-
             }
 
             CloseHandle(Child_In_Write);
