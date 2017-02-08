@@ -640,7 +640,7 @@ Run(char *command)
                     &Child_In_Read,
                     &Child_In_Write,
                     &secAttr,
-                    0);
+                    text_size);
             if (!createPipeSuccess)
             {
                 // @logging log error.
@@ -665,7 +665,7 @@ Run(char *command)
                     &Child_Out_Read,
                     &Child_Out_Write,
                     &secAttr,
-                    0);
+                    text_size);
             if (!createPipeSuccess)
             {
                 // @logging log error.
@@ -763,7 +763,7 @@ Run(char *command)
             startupInfo.hStdOutput = Child_Out_Write;
             startupInfo.dwFlags    = STARTF_USESTDHANDLES;
 
-            bool createProcessSuccess = CreateProcessW(
+            bool createProcessSuccess = CreateProcess(
                 NULL,
                 commandLine,
                 NULL,

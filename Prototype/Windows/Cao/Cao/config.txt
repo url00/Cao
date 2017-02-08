@@ -1,4 +1,4 @@
 ﻿"echoer":"..\Debug\Echoer.exe"=cas,`
-"cat":"cat -v > test.txt"=cas,x
+"cat":"cat -v"=cas,x
 "linenums":"linenums.bat"=cas,a
 "simple grep":"cat -v | grep -e uffer"=cas,s
