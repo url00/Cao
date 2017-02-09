@@ -20,6 +20,8 @@ typedef struct Config
     char hotkey;
 } Config;
 
+void
+RegisterConfigChangeNotifer();
 
 VOID CALLBACK
 ConfigChanged(PVOID lpParameter, BOOLEAN TimerOrWaitFired);

@@ -60,7 +60,6 @@ static const int Configs_size = 200;
 static Config Configs[Configs_size];
 
 static HANDLE configChangeNotifier = NULL;
-static bool needsReregister = false;
 
 
 static RAWINPUTDEVICE rawKeyboard = { 0 };
@@ -337,33 +336,7 @@ WinMain(
     
     // Load and parse config file.
     LoadConfigFile();
-
-    // Watch the config file for changes.
-    {
-        configChangeNotifier =
-            FindFirstChangeNotification(L".", false, FILE_NOTIFY_CHANGE_LAST_WRITE);
-        if (configChangeNotifier == INVALID_HANDLE_VALUE)
-        {
-            // @log err
-            printf("Could not initialize config file watcher!\n");
-        }
-        
-        HANDLE newHandle;
-        bool success =
-            RegisterWaitForSingleObject(
-                &newHandle,
-                configChangeNotifier,
-                ConfigChanged,
-                NULL,
-                INFINITE,
-                WT_EXECUTEONLYONCE);
-        if (!success)
-        {
-            // @log err
-            printf("Could not register wait for config file watcher!\n");
-        }
-    }
-
+    RegisterConfigChangeNotifer();
 
 
     // Set up raw input.
@@ -391,11 +364,38 @@ WinMain(
 
 
 
+void
+RegisterConfigChangeNotifer()
+{
+    configChangeNotifier =
+        FindFirstChangeNotification(L".", false, FILE_NOTIFY_CHANGE_LAST_WRITE);
+    if (configChangeNotifier == INVALID_HANDLE_VALUE)
+    {
+        // @log err
+        printf("Could not initialize config file watcher!\n");
+    }
+        
+    HANDLE newHandle;
+    bool success =
+        RegisterWaitForSingleObject(
+            &newHandle,
+            configChangeNotifier,
+            ConfigChanged,
+            NULL,
+            INFINITE,
+            WT_EXECUTEONLYONCE);
+    if (!success)
+    {
+        // @log err
+        printf("Could not register wait for config file watcher!\n");
+    }
+}
+
+
+
 VOID CALLBACK
 ConfigChanged(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
-{
-    needsReregister = true;
-     
+{     
     HANDLE currentDir =
         CreateFile(
             L".",
@@ -451,6 +451,8 @@ ConfigChanged(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
     }
 
     CloseHandle(currentDir);
+
+    RegisterConfigChangeNotifer();
 }
 
 
@@ -949,29 +951,6 @@ HandleIconMessage(LPARAM message)
 LRESULT CALLBACK
 WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    // @todo put this some place that avoids registering more than once
-    /*
-    if (needsReregister)
-    {
-        needsReregister = false;
-
-        HANDLE newHandle;
-        bool success =
-            RegisterWaitForSingleObject(
-                &newHandle,
-                configChangeNotifier,
-                ConfigChanged,
-                NULL,
-                INFINITE,
-                WT_EXECUTEONLYONCE);
-        if (!success)
-        {
-            // @log err
-            printf("Could not register wait for config file watcher!\n");
-        }
-    }
-    */
-
     switch (message)
     {
         case WM_INPUT:
@@ -1177,7 +1156,8 @@ ConsoleCtrlHandler(
 VOID CALLBACK
 LaunchedProcessExitedOrCancelled(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
 {
-    UnregisterWait(ChildProcInfo.hProcess);
+    // MSDN said that this was required, but I think it's already handles for me.
+    //UnregisterWait(ChildProcInfo.hProcess);
 
     isChildRunning = false;
     ModifyMenu(IconMenu, IconMenu_RunCancel, MF_BYCOMMAND, IconMenu_RunCancel, L"Run");
