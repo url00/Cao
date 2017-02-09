@@ -57,8 +57,8 @@ static const std::string configFilename("config.txt");
 static int currentConfigIndex = 0;
 static int Configs_count = 0;
 static const int Configs_size = 200;
-Config Configs[Configs_size];
-
+static Config Configs[Configs_size];
+static HANDLE configChangeNotifier = NULL;
 
 
 static RAWINPUTDEVICE rawKeyboard = { 0 };
@@ -82,7 +82,8 @@ void DisplayConfigFileError(int lineNum)
 void
 LoadConfigFile()
 {
-    
+    printf("Loading config file.\n");
+
     using namespace std;
     
     ifstream file(configFilename);
@@ -335,6 +336,27 @@ WinMain(
     // Load and parse config file.
     LoadConfigFile();
 
+    // Watch the config file for changes.
+    {
+        configChangeNotifier =
+            FindFirstChangeNotification(L".", false, FILE_NOTIFY_CHANGE_LAST_WRITE);
+        if (configChangeNotifier == INVALID_HANDLE_VALUE)
+        {
+            // @log err
+            printf("Could not initialize config file watcher!\n");
+        }
+        
+        HANDLE newHandle;
+        bool success =
+            RegisterWaitForSingleObject(
+                &newHandle,
+                configChangeNotifier,
+                ConfigChanged,
+                NULL,
+                INFINITE,
+                WT_EXECUTEONLYONCE);
+    }
+
 
 
     // Set up raw input.
@@ -360,6 +382,16 @@ WinMain(
     return (int)msg.wParam;
 }
 
+
+
+VOID CALLBACK
+ConfigChanged(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
+{
+    LoadConfigFile();
+}
+
+
+
 void
 CleanupStuff()
 {
@@ -381,6 +413,16 @@ CleanupStuff()
     if (isChildRunning)
     {
         TerminateChild();
+    }
+
+    if (configChangeNotifier != NULL && configChangeNotifier != INVALID_HANDLE_VALUE)
+    {
+        bool success = FindCloseChangeNotification(configChangeNotifier);
+        if (!success)
+        {
+            // @log err
+            printf("Could not close folder watcher handle!");
+        }
     }
 }
 
@@ -705,7 +747,7 @@ Run(Config *config)
             isChildRunning = true;
             ModifyMenu(IconMenu, IconMenu_RunCancel, MF_BYCOMMAND, IconMenu_RunCancel, L"Cancel");
 
-            // newHandle is always 0x00000000 so I'm assuming I don't need to clean it up.
+            // "Note that a wait handle cannot be used in functions that require an object handle, such as CloseHandle."
             HANDLE newHandle;
             RegisterWaitForSingleObject(&newHandle, ChildProcInfo.hProcess, LaunchedProcessExitedOrCancelled, NULL, INFINITE, WT_EXECUTEONLYONCE);
 

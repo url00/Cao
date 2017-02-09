@@ -20,6 +20,13 @@ typedef struct Config
     char hotkey;
 } Config;
 
+
+VOID CALLBACK
+ConfigChanged(PVOID lpParameter, BOOLEAN TimerOrWaitFired);
+
+void
+LoadConfigFile();
+
 int
 WinMain(
     HINSTANCE Instance,
