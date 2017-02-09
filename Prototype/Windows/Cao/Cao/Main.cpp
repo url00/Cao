@@ -1,6 +1,7 @@
 // Compile with: /D_UNICODE /DUNICODE /DWIN32 /D_WINDOWS /c /F 8000000 
 #pragma comment(lib, "user32.lib")
 
+// @todo clean up imports
 #include <Windows.h>
 #include <CommCtrl.h>
 #include <stdlib.h>
@@ -14,6 +15,9 @@
 #include <fstream>
 #include <iostream>
 #include <assert.h>
+#include <vector>
+#include <sstream>
+#include <algorithm>
 
 #include "Main.h"
 
@@ -49,7 +53,7 @@ static PROCESS_INFORMATION ChildProcInfo = { 0 };
 
 
 
-static const wchar_t *configFilename = L"config.txt";
+static const std::string configFilename("config.txt");
 static int currentConfigIndex = 0;
 static int Configs_count = 0;
 static const int Configs_size = 200;
@@ -62,246 +66,107 @@ static char modState = 0;
 
 
 
+void DisplayConfigFileError(int lineNum)
+{
+    // @todo give more precisce error position
+    // @log err
+    wchar_t errorMessage[255];
+    errorMessage[0] = '\0';
+    StringCchPrintf(errorMessage, 255, L"Invalid config file! Error line: %d", lineNum);
+
+    MessageBox(MyWindow, errorMessage, TITLE, MB_OK);
+    PostQuitMessage(0);
+}
+
+
 void
 LoadConfigFile()
 {
-    const int readBuffer_size = 200000;
-    unsigned char readBuffer[readBuffer_size];
-    readBuffer[0] = '\0';
-
-    HANDLE configFile =
-        CreateFile(
-            configFilename,
-            GENERIC_READ,
-            0,
-            NULL,
-            OPEN_EXISTING, 
-            FILE_ATTRIBUTE_NORMAL,
-            NULL);
-
-    DWORD bytesRead = 0;
-    bool readSuccess =
-        ReadFile(
-            configFile,
-            readBuffer,
-            readBuffer_size,
-            &bytesRead,
-            NULL);
-    if (!readSuccess)
+    
+    using namespace std;
+    
+    ifstream file(configFilename);
+    string rawLine;
+    int lineNum = 0;
+    while (getline(file, rawLine))
     {
-        // @log err
-        printf("Could not read from config file!\n");
-    }
+        lineNum++;
 
-    if(!CloseHandle(configFile))
-    {
-        // @log err
-        printf("Could not close config file handle!\n");
-    }
+        if (rawLine.length() < 5)
+        {
+            continue;
+        }
+        
+        int commentPosition = rawLine.find('#');
+        if (commentPosition != string::npos)
+        {
+            rawLine = rawLine.substr(0, commentPosition);
+        }
 
+        int numDelimiters = count(rawLine.begin(), rawLine.end(), ',');
+        int namePos = rawLine.rfind(',');
+        int commandPos = rawLine.find('~');
+        bool isValidLine = numDelimiters == 3 && namePos < commandPos;
+        if (!isValidLine)
+        {
+            continue;
+        }
+                
+        stringstream line;
+        line << rawLine;
+
+        Config *config = &Configs[Configs_count];
+        config->inputMode = Config_STANDARD;
+        
+        string hotkeyMod;
+        getline(line, hotkeyMod, ',');
+        if (hotkeyMod.find('c') != string::npos) config->hotkeyMod |= Config_CONTROL;
+        if (hotkeyMod.find('a') != string::npos) config->hotkeyMod |= Config_ALT;
+        if (hotkeyMod.find('s') != string::npos) config->hotkeyMod |= Config_SHIFT;
+        if (config->hotkeyMod == 0)
+        {
+            DisplayConfigFileError(lineNum);
+            return;
+        }
+
+        string hotkey;
+        getline(line, hotkey, ',');
+        if (hotkey.length() != 1)
+        {
+            DisplayConfigFileError(lineNum);
+            return;
+        }
+        config->hotkey = hotkey[0];
+
+        string mode;
+        getline(line, mode, ',');
+        if (mode.find('s') != string::npos) config->inputMode |= Config_STANDARD;
+        if (mode.find('t') != string::npos) config->inputMode |= Config_TEMPFILE;
+        if (mode.find('a') != string::npos) config->inputMode |= Config_ARGS;
+        if (config->inputMode == 0)
+        {
+            DisplayConfigFileError(lineNum);
+            return;
+        }
+
+        string name;
+        getline(line, name, '~');
+        strcpy_s(config->name, name.c_str());
+
+        string command;
+        getline(line, command);
+        if (command.length() <= 0)
+        {
+            DisplayConfigFileError(lineNum);
+            return;
+        }
+        strcpy_s(config->command, command.c_str());
+
+
+        Configs_count++;
+    }
 
     
-    if (bytesRead < 3)
-    {
-        // @log err
-        printf("Invalid config file!\n");
-        PostQuitMessage(EXIT_FAILURE);
-        return;
-    }
-
-    // Detect BOM and move past it.
-    int startingOffset = 0;
-    bool hasBOM = 
-        readBuffer[0] == 0xef &&
-        readBuffer[1] == 0xbb &&
-        readBuffer[2] == 0xbf;
-    if (hasBOM)
-    {
-        startingOffset = 3;
-    }
-    
-    
-    int lineBuffer_length = 0;
-    const int lineBuffer_size = 200000;
-    char lineBuffer[lineBuffer_size];
-
-    for (int readBuffer_i = startingOffset; readBuffer_i < bytesRead; readBuffer_i++)
-    {
-        bool isLineReady = false;
-
-        char readChar = readBuffer[readBuffer_i];
-        if (readChar == '\r')
-        {
-            // Skip the newline character for \r\n endings.
-            readBuffer_i++;
-            lineBuffer[lineBuffer_length] = '\0';
-            isLineReady = true;
-        }
-        else if (readChar == '\n')
-        {
-            lineBuffer[lineBuffer_length] = '\0';
-            isLineReady = true;
-        }
-        else if (readChar == '#')
-        {
-            // Skip rest of line.
-            while (readBuffer_i < bytesRead)
-            {
-                char readChar = readBuffer[readBuffer_i];
-                if (readChar == '\r')
-                {
-                    // Skip the newline character for \r\n endings.
-                    readBuffer_i++;
-                    lineBuffer[lineBuffer_length] = '\0';
-                    break;
-                }
-                else if (readChar == '\n')
-                {
-                    lineBuffer[lineBuffer_length] = '\0';
-                    break;
-                }
-
-                readBuffer_i++;
-            }
-
-            if (lineBuffer_length > 0)
-            {
-                isLineReady = true;
-            }
-        }
-        else
-        {
-            lineBuffer[lineBuffer_length] = readChar;
-            lineBuffer_length++;
-        }
-
-        if (isLineReady)
-        {
-            Config *currentConfig = &Configs[Configs_count];
-            currentConfig->inputMode = Config_STANDARD;
-
-            char *readCharDest = currentConfig->name;
-            const char NAME       = 1 << 0;
-            const char COMMAND    = 1 << 1;
-            const char INPUT      = 1 << 2;
-            const char HOTKEYMOD  = 1 << 3;
-            const char HOTKEY     = 1 << 4;
-            char readMode = NAME;
-
-            for (int lineBuffer_i = 0; lineBuffer_i < lineBuffer_length; lineBuffer_i++)
-            {
-                char lineChar = lineBuffer[lineBuffer_i];
-
-                if (readMode & (NAME | COMMAND))
-                {
-                    if (lineChar == '~')
-                    {
-                        if (readMode & NAME)
-                        {
-                            readCharDest = currentConfig->name;
-                        }
-                        else if (readMode & COMMAND)
-                        {
-                            readCharDest = currentConfig->command;
-                        }
-                    }
-                    else if (lineChar == ':')
-                    {
-                        readMode = COMMAND;
-                    }
-                    else if (lineChar == '/')
-                    {
-                        readMode = INPUT;
-                    }
-                    else if (lineChar == '=')
-                    {
-                        readMode = HOTKEYMOD;
-                    }
-                    else if (lineChar == '\r' || readChar == '\n')
-                    {
-                    }
-                    else
-                    {
-                        char charWithNull[2];
-                        charWithNull[0] = lineChar;
-                        charWithNull[1] = '\0';
-                        strcat_s(readCharDest, 255, charWithNull);
-                    }
-                }
-                else if (readMode & INPUT)
-                {
-                    if (lineChar == 's')
-                    {
-                        currentConfig->inputMode |= Config_STANDARD;
-                    }
-                    else if (lineChar == 'a')
-                    {
-                        currentConfig->inputMode |= Config_ARGS;
-                    }
-                    else if (lineChar == 't')
-                    {
-                        currentConfig->inputMode |= Config_TEMPFILE;
-                    }
-                    else if (lineChar == '=')
-                    {
-                        readMode = HOTKEYMOD;
-                    }
-                }
-                else if (readMode & HOTKEYMOD)
-                {
-                    if (lineChar == 'c')
-                    {
-                        currentConfig->hotkeyMod |= Config_CONTROL;
-                    }
-                    else if (lineChar == 'a')
-                    {
-                        currentConfig->hotkeyMod |= Config_ALT;
-                    }
-                    else if (lineChar == 's')
-                    {
-                        currentConfig->hotkeyMod |= Config_SHIFT;
-                    }
-                    else if (lineChar == ',')
-                    {
-                        readMode = HOTKEY;
-                    }
-                    else
-                    {
-                        // @log err
-                        wchar_t errorMessage[255];
-                        errorMessage[0] = '\0';
-                        StringCchPrintf(errorMessage, 255, L"Invalid config file! Error position: %d:%d", Configs_count + 1, lineBuffer_i + 1);
-
-                        MessageBox(MyWindow, errorMessage, TITLE, MB_OK);
-                        PostQuitMessage(0);
-                        return;
-                    }
-                }
-                else if (readMode & HOTKEY)
-                {
-                    currentConfig->hotkey = lineChar;
-
-                    // Once we've read the hotkey, no need to continue reading.
-                    break;
-                }
-            }
-            
-            if (!(readMode & (COMMAND | HOTKEY)))
-            {
-                // @log err
-                wchar_t errorMessage[255];
-                errorMessage[0] = '\0';
-                StringCchPrintf(errorMessage, 255, L"Invalid config file! Error line: %d", Configs_count + 1);
-
-                MessageBox(MyWindow, errorMessage, TITLE, MB_OK);
-                PostQuitMessage(0);
-                return;
-            }
-            
-            lineBuffer_length = 0;
-            Configs_count++;
-        }
-    }
 }
 
 
