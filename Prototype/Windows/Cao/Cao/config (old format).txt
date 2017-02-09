@@ -5,4 +5,5 @@
 ~simple grep~:~cat -v | grep -e uffer~=cas,s
 #flip things around, so it will look like this
 #cas,`=some name here~everything after a ~ is interprted as a command
-tesdstesdftsdjasasdlsakk
+saksdjl
+asdsa

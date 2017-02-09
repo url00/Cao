@@ -58,7 +58,9 @@ static int currentConfigIndex = 0;
 static int Configs_count = 0;
 static const int Configs_size = 200;
 static Config Configs[Configs_size];
+
 static HANDLE configChangeNotifier = NULL;
+static bool needsReregister = false;
 
 
 static RAWINPUTDEVICE rawKeyboard = { 0 };
@@ -355,6 +357,11 @@ WinMain(
                 NULL,
                 INFINITE,
                 WT_EXECUTEONLYONCE);
+        if (!success)
+        {
+            // @log err
+            printf("Could not register wait for config file watcher!\n");
+        }
     }
 
 
@@ -387,7 +394,63 @@ WinMain(
 VOID CALLBACK
 ConfigChanged(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
 {
-    LoadConfigFile();
+    needsReregister = true;
+     
+    HANDLE currentDir =
+        CreateFile(
+            L".",
+            FILE_LIST_DIRECTORY,
+            FILE_SHARE_READ,
+            NULL,
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS,
+            NULL);
+    if (currentDir == INVALID_HANDLE_VALUE)
+    {
+        // @log err
+        printf("Could not create handle for current directoy!\n");
+    }
+    
+    DWORD bytesWritten;
+    FILE_NOTIFY_INFORMATION infos[4096];
+    memset(infos, 0, sizeof(infos));
+    
+    bool success =
+        ReadDirectoryChangesW(
+            currentDir,
+            &infos,
+            sizeof(infos),
+            false,
+            FILE_NOTIFY_CHANGE_LAST_WRITE,
+            &bytesWritten,
+            NULL,
+            NULL);
+
+    int infos_count = bytesWritten / sizeof(FILE_NOTIFY_INFORMATION);
+    for (int infos_i = 0; infos_i < infos_count; infos_i++)
+    {
+        FILE_NOTIFY_INFORMATION *info = &infos[infos_i];
+
+        if (!(info->Action & FILE_ACTION_MODIFIED)) continue;
+        
+        // @todo replace hardcoded filename length
+        if (info->FileNameLength != 20) continue;
+
+
+
+        wchar_t safeFilename[MAX_PATH];
+        memcpy_s(safeFilename, MAX_PATH, info->FileName, info->FileNameLength);
+        safeFilename[info->FileNameLength / 2] = '\0';
+
+        // @todo replace hardcoded filename
+        if (wcscmp(L"config.txt", safeFilename) == 0)
+        {
+            LoadConfigFile();
+            break;
+        }
+    }
+
+    CloseHandle(currentDir);
 }
 
 
@@ -886,6 +949,29 @@ HandleIconMessage(LPARAM message)
 LRESULT CALLBACK
 WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    // @todo put this some place that avoids registering more than once
+    /*
+    if (needsReregister)
+    {
+        needsReregister = false;
+
+        HANDLE newHandle;
+        bool success =
+            RegisterWaitForSingleObject(
+                &newHandle,
+                configChangeNotifier,
+                ConfigChanged,
+                NULL,
+                INFINITE,
+                WT_EXECUTEONLYONCE);
+        if (!success)
+        {
+            // @log err
+            printf("Could not register wait for config file watcher!\n");
+        }
+    }
+    */
+
     switch (message)
     {
         case WM_INPUT:
@@ -1091,6 +1177,8 @@ ConsoleCtrlHandler(
 VOID CALLBACK
 LaunchedProcessExitedOrCancelled(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
 {
+    UnregisterWait(ChildProcInfo.hProcess);
+
     isChildRunning = false;
     ModifyMenu(IconMenu, IconMenu_RunCancel, MF_BYCOMMAND, IconMenu_RunCancel, L"Run");
 
