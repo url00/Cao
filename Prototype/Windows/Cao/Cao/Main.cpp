@@ -50,16 +50,18 @@ static HANDLE Child_Out_Read  = NULL;
 static HANDLE Child_Out_Write = NULL;
 
 static PROCESS_INFORMATION ChildProcInfo = { 0 };
+static HANDLE childWait = NULL;
 
 
+static const char *configFilenameA    =  "config.txt";
+static const wchar_t *configFilenameW = L"config.txt";
 
-static const std::string configFilename("config.txt");
-static int currentConfigIndex = 0;
 static int Configs_count = 0;
 static const int Configs_size = 200;
 static Config Configs[Configs_size];
 
-static HANDLE configChangeNotifier = NULL;
+static HANDLE configChangeNotifier     = NULL;
+static HANDLE configChangeNotifierWait = NULL;
 
 
 static RAWINPUTDEVICE rawKeyboard = { 0 };
@@ -87,7 +89,7 @@ LoadConfigFile()
 
     using namespace std;
     
-    ifstream file(configFilename);
+    ifstream file(configFilenameA);
     string rawLine;
     int lineNum = 0;
     while (getline(file, rawLine))
@@ -367,18 +369,30 @@ WinMain(
 void
 RegisterConfigChangeNotifer()
 {
+    if (configChangeNotifier != NULL || configChangeNotifier != INVALID_HANDLE_VALUE)
+    {
+        FindCloseChangeNotification(configChangeNotifier);
+        configChangeNotifier = NULL;
+    }
+
+    if (configChangeNotifierWait != NULL || configChangeNotifierWait != INVALID_HANDLE_VALUE)
+    {
+        UnregisterWait(configChangeNotifierWait);
+        configChangeNotifierWait = NULL;
+    }
+
     configChangeNotifier =
         FindFirstChangeNotification(L".", false, FILE_NOTIFY_CHANGE_LAST_WRITE);
     if (configChangeNotifier == INVALID_HANDLE_VALUE)
     {
         // @log err
         printf("Could not initialize config file watcher!\n");
+        return;
     }
         
-    HANDLE newHandle;
     bool success =
         RegisterWaitForSingleObject(
-            &newHandle,
+            &configChangeNotifierWait,
             configChangeNotifier,
             ConfigChanged,
             NULL,
@@ -388,6 +402,7 @@ RegisterConfigChangeNotifer()
     {
         // @log err
         printf("Could not register wait for config file watcher!\n");
+        return;
     }
 }
 
@@ -443,7 +458,7 @@ ConfigChanged(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
         safeFilename[info->FileNameLength / 2] = '\0';
 
         // @todo replace hardcoded filename
-        if (wcscmp(L"config.txt", safeFilename) == 0)
+        if (wcscmp(configFilenameW, safeFilename) == 0)
         {
             LoadConfigFile();
             break;
@@ -812,9 +827,7 @@ Run(Config *config)
             isChildRunning = true;
             ModifyMenu(IconMenu, IconMenu_RunCancel, MF_BYCOMMAND, IconMenu_RunCancel, L"Cancel");
 
-            // "Note that a wait handle cannot be used in functions that require an object handle, such as CloseHandle."
-            HANDLE newHandle;
-            RegisterWaitForSingleObject(&newHandle, ChildProcInfo.hProcess, LaunchedProcessExitedOrCancelled, NULL, INFINITE, WT_EXECUTEONLYONCE);
+            RegisterWaitForSingleObject(&childWait, ChildProcInfo.hProcess, LaunchedProcessExitedOrCancelled, NULL, INFINITE, WT_EXECUTEONLYONCE);
 
             
 
@@ -1156,8 +1169,18 @@ ConsoleCtrlHandler(
 VOID CALLBACK
 LaunchedProcessExitedOrCancelled(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
 {
-    // MSDN said that this was required, but I think it's already handles for me.
-    //UnregisterWait(ChildProcInfo.hProcess);
+    if (ChildProcInfo.hProcess != NULL && ChildProcInfo.hProcess != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(ChildProcInfo.hProcess);
+        ChildProcInfo.hProcess = NULL;
+    }
+
+    if (childWait != NULL && childWait != INVALID_HANDLE_VALUE)
+    {
+        UnregisterWait(childWait);
+        childWait = NULL;
+    }
+
 
     isChildRunning = false;
     ModifyMenu(IconMenu, IconMenu_RunCancel, MF_BYCOMMAND, IconMenu_RunCancel, L"Run");
