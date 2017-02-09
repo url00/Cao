@@ -87,6 +87,9 @@ LoadConfigFile()
 {
     printf("Loading config file.\n");
 
+    memset(Configs, 0, sizeof(Configs));
+    Configs_count = 0;
+
     using namespace std;
     
     ifstream file(configFilenameA);
@@ -120,7 +123,6 @@ LoadConfigFile()
         line << rawLine;
 
         Config *config = &Configs[Configs_count];
-        config->inputMode = Config_STANDARD;
         
         string hotkeyMod;
         getline(line, hotkeyMod, ',');
@@ -593,7 +595,7 @@ Run(Config *config)
         return;
     }
 
-    printf("Running.\n");
+    printf("Running command \"%s\".\n", config->name);
     
     // Get clipboard data.
     if (!OpenClipboard(MyWindow))

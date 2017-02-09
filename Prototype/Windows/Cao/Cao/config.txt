@@ -1,4 +1,6 @@
 ﻿# This is a comment.
+cas,w,t,~type
+cas,q,s,~cat
 cas,`,sta,echoer~Debug\Echoer.exe # Test program for stuff
 cas,e,s,cat~cat -v
 cas,i,s,linenums~awk '{print FNR "\t" $0}'
