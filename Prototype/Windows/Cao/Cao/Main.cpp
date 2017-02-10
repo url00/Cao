@@ -101,22 +101,34 @@ LoadConfigFile()
             rawLine = rawLine.substr(0, commentPosition);
         }
 
-        int numDelimiters = count(rawLine.begin(), rawLine.end(), ',');
-        int namePos = rawLine.rfind(',');
+        
         int commandPos = rawLine.find('~');
-        bool isValidLine = numDelimiters == 3 && namePos < commandPos;
-        if (!isValidLine)
+        if (commandPos == string::npos || commandPos + 1 >= rawLine.length() - 1)
         {
             continue;
         }
-                
-        stringstream line;
-        line << rawLine;
 
+
+        std::string configPart  = rawLine.substr(0, commandPos);
+        std::string commandPart = rawLine.substr(commandPos + 1, rawLine.length());
+
+
+        int numDelimiters = count(configPart.begin(), configPart.end(), ',');
+        int namePos = configPart.rfind(',');
+        if (numDelimiters != 3)
+        {
+            continue;
+        }
+
+
+        
         Config *config = &Configs[Configs_count];
+
+        stringstream configPart_stream;
+        configPart_stream << configPart;
         
         string hotkeyMod;
-        getline(line, hotkeyMod, ',');
+        getline(configPart_stream, hotkeyMod, ',');
         if (hotkeyMod.find('c') != string::npos) config->hotkeyMod |= Config_CONTROL;
         if (hotkeyMod.find('a') != string::npos) config->hotkeyMod |= Config_ALT;
         if (hotkeyMod.find('s') != string::npos) config->hotkeyMod |= Config_SHIFT;
@@ -127,7 +139,7 @@ LoadConfigFile()
         }
 
         string hotkey;
-        getline(line, hotkey, ',');
+        getline(configPart_stream, hotkey, ',');
         if (hotkey.length() != 1)
         {
             DisplayConfigFileError(lineNum);
@@ -136,7 +148,7 @@ LoadConfigFile()
         config->hotkey = hotkey[0];
 
         string mode;
-        getline(line, mode, ',');
+        getline(configPart_stream, mode, ',');
         if (mode.find('s') != string::npos) config->inputMode |= Config_STANDARD;
         if (mode.find('t') != string::npos) config->inputMode |= Config_TEMPFILE;
         if (mode.find('a') != string::npos) config->inputMode |= Config_ARGS;
@@ -147,17 +159,17 @@ LoadConfigFile()
         }
 
         string name;
-        getline(line, name, '~');
+        getline(configPart_stream, name);
         strcpy_s(config->name, name.c_str());
 
-        string command;
-        getline(line, command);
-        if (command.length() <= 0)
+
+
+        if (commandPart.length() <= 0)
         {
             DisplayConfigFileError(lineNum);
             return;
         }
-        strcpy_s(config->command, command.c_str());
+        strcpy_s(config->command, commandPart.c_str());
 
 
         Configs_count++;
