@@ -16,7 +16,7 @@
 
 // Global data.
 static const wchar_t *TITLE = L"Cao";
-static HWND MyWindow = NULL;
+static HWND MainWindow = NULL;
 static HHOOK KeyboardHook;
 static HANDLE My_Out = NULL;
 static bool isWindowShowing = false;
@@ -68,7 +68,7 @@ void DisplayConfigFileError(int lineNum)
     errorMessage[0] = '\0';
     StringCchPrintf(errorMessage, 255, L"Invalid config file! Error line: %d", lineNum);
 
-    MessageBox(MyWindow, errorMessage, TITLE, MB_OK);
+    MessageBox(MainWindow, errorMessage, TITLE, MB_OK);
     PostQuitMessage(0);
 }
 
@@ -210,7 +210,7 @@ WinMain(
     WindowClass.hInstance     = Instance;
     WindowClass.hIcon         = LoadIcon(Instance, MAKEINTRESOURCE(IDI_APPLICATION));
     WindowClass.hCursor       = LoadCursor(NULL, IDC_ARROW);
-    WindowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    WindowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW);
     WindowClass.lpszMenuName  = NULL;
     WindowClass.lpszClassName = TITLE;
     WindowClass.hIconSm       = LoadIcon(WindowClass.hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
@@ -229,19 +229,20 @@ WinMain(
 
     // Set up window.
     // @todo get current screen size to put window in center
-    MyWindow = CreateWindow(
-        WindowClass.lpszClassName,
-        TITLE,
-        WS_OVERLAPPEDWINDOW,
-        490, 500,
-        1000, 1,
-        NULL,
-        NULL,
-        Instance,
-        NULL
-    );
+    MainWindow =
+        CreateWindow(
+            WindowClass.lpszClassName,
+            TITLE,
+            WS_OVERLAPPEDWINDOW,
+            490, 500,
+            1000, 400,
+            NULL,
+            NULL,
+            Instance,
+            NULL
+        );
 
-    if (!MyWindow)
+    if (!MainWindow)
     {
         MessageBox(
             NULL,
@@ -252,24 +253,10 @@ WinMain(
         return EXIT_FAILURE;
     }
 
-    // Set the window's styles.
-    // @todo use CreateWindowEx instead of manually setting the styles after creation.
-    {
-        LONG normalStyles = GetWindowLong(MyWindow, GWL_STYLE);
-        normalStyles &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU);
-        SetWindowLongPtr(MyWindow, GWL_STYLE, normalStyles);
-
-        LONG extendedStyles = GetWindowLong(MyWindow, GWL_EXSTYLE);
-        extendedStyles &= ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE | WS_EX_TOPMOST);
-        SetWindowLongPtr(MyWindow, GWL_EXSTYLE, extendedStyles);
-    }
-
-    SetWindowPos(MyWindow, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 
 
-    // @todo only show window on click or keyboard shortcut.
-    //ShowWindow(MyWindow, nCmdShow);
-    UpdateWindow(MyWindow);
+    //ShowWindow(MainWindow, cmdShow);
+    UpdateWindow(MainWindow);
 
 
 
@@ -284,11 +271,9 @@ WinMain(
     AppendMenu(IconMenu, MF_SEPARATOR, 0,                  NULL);
     AppendMenu(IconMenu, MF_STRING,    IconMenu_Exit,      L"Exit");
 
-
-
     // Set up tray icon.
     IconData.cbSize           = sizeof(NOTIFYICONDATA);
-    IconData.hWnd             = MyWindow;
+    IconData.hWnd             = MainWindow;
     IconData.uID              = 0;
     // {DB649CB7-81B4-4638-A97D-25552A45D5C8}
     IconData.guidItem         = { 0xdb649cb7, 0x81b4, 0x4638,{ 0xa9, 0x7d, 0x25, 0x55, 0x2a, 0x45, 0xd5, 0xc8 } };
@@ -299,7 +284,7 @@ WinMain(
     IconData.dwStateMask      = 0;
     IconData.uVersion         = NOTIFYICON_VERSION_4;
     IconData.dwInfoFlags      = 0;
-    IconData.hIcon = LoadIcon(NULL, IDI_ASTERISK);
+    IconData.hIcon            = LoadIcon(NULL, IDI_ASTERISK);
     StringCchCopy(IconData.szTip,       ARRAYSIZE(IconData.szTip),       TITLE);
     StringCchCopy(IconData.szInfoTitle, ARRAYSIZE(IconData.szInfoTitle), TITLE);
     StringCchCopy(IconData.szInfo,      ARRAYSIZE(IconData.szInfo),      TITLE);
@@ -318,7 +303,7 @@ WinMain(
         {
             // @log unable to start, couldn't create shell icon.
             MessageBox(
-                MyWindow,
+                MainWindow,
                 L"Call to Shell_NotifyIcon failed!",
                 TITLE,
                 NULL);
@@ -334,11 +319,12 @@ WinMain(
     RegisterConfigChangeNotifer();
 
 
+
     // Set up raw input.
     rawKeyboard.dwFlags     = RIDEV_NOLEGACY | RIDEV_INPUTSINK;
     rawKeyboard.usUsagePage = 1;
     rawKeyboard.usUsage     = 6;
-    rawKeyboard.hwndTarget  = MyWindow;
+    rawKeyboard.hwndTarget  = MainWindow;
     RegisterRawInputDevices(&rawKeyboard, 1, sizeof(rawKeyboard));
 
 
@@ -589,7 +575,7 @@ Run(Config *config)
     printf("Running command \"%s\".\n", config->name);
     
     // Get clipboard data.
-    if (!OpenClipboard(MyWindow))
+    if (!OpenClipboard(MainWindow))
     {
         // @log err.
         printf("Couldn't open the clipboard!\n");
@@ -901,12 +887,12 @@ HandleIconMessage(LPARAM message)
             if (isWindowShowing)
             {
                 isWindowShowing = false;
-                ShowWindow(MyWindow, SW_HIDE);
+                ShowWindow(MainWindow, SW_HIDE);
             }
             else
             {
                 isWindowShowing = true;
-                ShowWindow(MyWindow, SW_RESTORE);
+                ShowWindow(MainWindow, SW_RESTORE);
             }
             break;
         }
@@ -916,7 +902,7 @@ HandleIconMessage(LPARAM message)
             POINT CursorPoint;
             GetCursorPos(&CursorPoint);
 
-            SetForegroundWindow(MyWindow);
+            SetForegroundWindow(MainWindow);
 
             UINT clicked =
                 TrackPopupMenu(
@@ -925,13 +911,13 @@ HandleIconMessage(LPARAM message)
                     CursorPoint.x,
                     CursorPoint.y,
                     0,
-                    MyWindow,
+                    MainWindow,
                     NULL);
             switch (clicked)
             {
                 case IconMenu_Exit:
                 {
-                    DestroyWindow(MyWindow);
+                    DestroyWindow(MainWindow);
                     break;
                 }
 
@@ -1100,7 +1086,7 @@ WndProc(HWND Window, UINT message, WPARAM wParam, LPARAM lParam)
         case WM_PAINT:
         {
             PAINTSTRUCT paintStruct;
-            HDC context = BeginPaint(MyWindow, &paintStruct);
+            HDC context = BeginPaint(MainWindow, &paintStruct);
 
             wchar_t *message = L"Hi.";
             TextOut(context, 5, 5, message, wcslen(message));
@@ -1228,7 +1214,7 @@ LaunchedProcessExitedOrCancelled(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
         
         printf("\n\n\nAttempting to open clipboard...\n");
     
-        if (!OpenClipboard(MyWindow))
+        if (!OpenClipboard(MainWindow))
         {
             // On failure, give up;
             // @log err.
