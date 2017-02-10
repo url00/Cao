@@ -1,21 +1,12 @@
 // Compile with: /D_UNICODE /DUNICODE /DWIN32 /D_WINDOWS /c /F 8000000 
 #pragma comment(lib, "user32.lib")
 
-// @todo clean up imports
 #include <Windows.h>
-#include <CommCtrl.h>
-#include <stdlib.h>
-#include <string.h>
-#include <tchar.h>
 #include <strsafe.h>
-#include <io.h>
-#include <fcntl.h>
-#include <stdio.h>
 #include <string>
 #include <fstream>
 #include <iostream>
 #include <assert.h>
-#include <vector>
 #include <sstream>
 #include <algorithm>
 
@@ -227,7 +218,7 @@ WinMain(
     if (!RegisterClassEx(&WindowClass))
     {
         MessageBox(NULL,
-            _T("Call to RegisterClassEx failed!"),
+            L"Call to RegisterClassEx failed!",
             TITLE,
             NULL);
 
@@ -254,7 +245,7 @@ WinMain(
     {
         MessageBox(
             NULL,
-            _T("Call to CreateWindow failed!"),
+            L"Call to CreateWindow failed!",
             TITLE,
             NULL);
 
