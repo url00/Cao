@@ -20,6 +20,7 @@ About(HWND, UINT, WPARAM, LPARAM);
 
 
 
+static HWND MainWindow;
 static HINSTANCE MainInstance;
 static WCHAR Title[MAX_LOADSTRING];
 static WCHAR MainClass[MAX_LOADSTRING];
@@ -80,7 +81,25 @@ wWinMain(
     if (!InitInstance (Instance, cmdShow))
     {
         return FALSE;
-    }
+    }    
+
+
+
+    HANDLE edit =
+        CreateWindowExW(
+            WS_EX_CLIENTEDGE,
+            L"edit",
+            Title,
+            WS_VISIBLE | WS_CHILD | WS_BORDER | ES_LEFT,
+            0, 0,
+            100, 40,
+            MainWindow,
+            NULL,
+            MainInstance,
+            NULL);
+
+
+
 
     HACCEL hAccelTable = LoadAccelerators(Instance, MAKEINTRESOURCE(IDC_CAO));
 
