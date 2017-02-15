@@ -1,0 +1,8 @@
+# depslib dependency file v1.0
+1487133468 source:/home/nathan/Desktop/Cao/Cross/Cross.cpp
+	"Cross.h"
+	<fstream>
+
+1487133468 /home/nathan/Desktop/Cao/Cross/Cross.h
+	<string>
+
