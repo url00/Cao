@@ -1,7 +1,5 @@
 namespace cao
 {
-    const char *TITLE = "Cao";
-
     const char Config_CONTROL = 1 << 0;
     const char Config_ALT     = 1 << 1;
     const char Config_SHIFT   = 1 << 2;

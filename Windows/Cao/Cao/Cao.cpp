@@ -1,216 +1,233 @@
-// Cao.cpp : Defines the entry point for the application.
-//
-
 #include "stdafx.h"
 #include "Cao.h"
 
 #define MAX_LOADSTRING 100
 
-ATOM
-MyRegisterClass(HINSTANCE hInstance);
 
-BOOL
-InitInstance(HINSTANCE, int);
 
-LRESULT CALLBACK
-WndProc(HWND, UINT, WPARAM, LPARAM);
-
-INT_PTR CALLBACK
-About(HWND, UINT, WPARAM, LPARAM);
+static HINSTANCE _mainInstance;
+static WCHAR _title[MAX_LOADSTRING];
+static WCHAR _mainClass[MAX_LOADSTRING];
 
 
 
-static HWND MainWindow;
-static HINSTANCE MainInstance;
-static WCHAR Title[MAX_LOADSTRING];
-static WCHAR MainClass[MAX_LOADSTRING];
+static HWND _mainWindow;
+static const int _mainWindow_HEIGHT = 100;
+static const int _mainWindow_WIDTH  = 400;
 
 
 
-static const char *logFileName = "log.txt";
-static std::ofstream f(logFileName);
+static HWND _editWindow;
+
+
+
+static int _font_height = 0;
+static const int _font_PADDING = 6;
+
+
+
+static std::ofstream _logFile("log.txt");
 
 
 
 int APIENTRY
 wWinMain(
-    _In_     HINSTANCE Instance,
-    _In_opt_ HINSTANCE PrevInstance,
-    _In_     LPWSTR    cmdLine,
-    _In_     int       cmdShow
+    HINSTANCE instance,
+    HINSTANCE prevInstance,
+    LPWSTR    cmdLine,
+    int       cmdShow
 )
 {
-    UNREFERENCED_PARAMETER(PrevInstance);
+    UNREFERENCED_PARAMETER(prevInstance);
     UNREFERENCED_PARAMETER(cmdLine);
     
-    MainInstance = Instance;
+    _mainInstance = instance;
 
 
 
-    // Initialize global strings.
-    LoadStringW(MainInstance, IDS_APP_TITLE, Title, MAX_LOADSTRING);
-    LoadStringW(MainInstance, IDC_CAO, MainClass, MAX_LOADSTRING);
+    LoadStringW(_mainInstance, IDS_APP_TITLE, _title,     MAX_LOADSTRING);
+    LoadStringW(_mainInstance, IDC_CAO,       _mainClass, MAX_LOADSTRING);
 
 
 
     {
         WNDCLASSEXW params;
-        params.cbSize = sizeof(WNDCLASSEX);
-        params.style          = CS_HREDRAW | CS_VREDRAW;
-        params.lpfnWndProc    = WndProc;
-        params.cbClsExtra     = 0;
-        params.cbWndExtra     = 0;
-        params.hInstance      = MainInstance;
-        params.hIcon          = LoadIcon(MainInstance, MAKEINTRESOURCE(IDI_CAO));
-        params.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-        params.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-        params.lpszMenuName   = MAKEINTRESOURCEW(IDC_CAO);
-        params.lpszClassName  = MainClass;
-        params.hIconSm        = LoadIcon(params.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+        params.cbSize        = sizeof(WNDCLASSEX);
+        params.style         = CS_HREDRAW | CS_VREDRAW;
+        params.lpfnWndProc   = WndProc;
+        params.cbClsExtra    = 0;
+        params.cbWndExtra    = 0;
+        params.hInstance     = _mainInstance;
+        params.hIcon         = LoadIcon(_mainInstance, MAKEINTRESOURCE(IDI_CAO));
+        params.hCursor       = LoadCursor(NULL, IDC_ARROW);
+        params.hbrBackground = (HBRUSH)(COLOR_WINDOW+1);
+        params.lpszMenuName  = MAKEINTRESOURCEW(IDC_CAO);
+        params.lpszClassName = _mainClass;
+        params.hIconSm       = LoadIcon(params.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
         ATOM result = RegisterClassExW(&params);
         if (result == 0)
         {
+            goto error_cleanup_logFile;
         }
     }
 
 
-
-
-    // Perform application initialization:
-    if (!InitInstance (Instance, cmdShow))
+       
+    _mainWindow =
+        CreateWindowW(
+            _mainClass,
+            _title,
+            WS_OVERLAPPEDWINDOW,
+            CW_USEDEFAULT, CW_USEDEFAULT,
+            _mainWindow_WIDTH, _mainWindow_HEIGHT,
+            NULL,
+            NULL,
+            _mainInstance,
+            NULL);
+    if (!_mainWindow)
     {
-        return FALSE;
-    }    
+        goto error_cleanup_logFile;
+    }
+
+    ShowWindow(_mainWindow, cmdShow);
+    UpdateWindow(_mainWindow);
 
 
-
-    HANDLE edit =
+    
+    _editWindow =
         CreateWindowExW(
             WS_EX_CLIENTEDGE,
-            L"edit",
-            Title,
+            L"EDIT",
+            _title,
             WS_VISIBLE | WS_CHILD | WS_BORDER | ES_LEFT,
             0, 0,
-            100, 40,
-            MainWindow,
+            _mainWindow_WIDTH, _mainWindow_HEIGHT,
+            _mainWindow,
             NULL,
-            MainInstance,
-            NULL);
+            _mainInstance,
+            NULL);    
 
-
-
-
-    HACCEL hAccelTable = LoadAccelerators(Instance, MAKEINTRESOURCE(IDC_CAO));
-
-    MSG msg;
-
-    // Main message loop:
-    while (GetMessage(&msg, nullptr, 0, 0))
     {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+        HDC context = GetDC(_editWindow);
+        if (context == NULL)
         {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+            _logFile << "Could not get DC for font height." << std::endl;
+
+            ReleaseDC(_editWindow, context);
+            goto error_cleanup_logFile;
         }
-    }
-
-    return (int) msg.wParam;
-}
 
 
-
-//
-//   FUNCTION: InitInstance(HINSTANCE, int)
-//
-//   PURPOSE: Saves instance handle and creates main window
-//
-//   COMMENTS:
-//
-//        In this function, we save the instance handle in a global variable and
-//        create and display the main program window.
-//
-BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
-{
-
-   HWND hWnd = CreateWindowW(MainClass, Title, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
-
-   if (!hWnd)
-   {
-      return FALSE;
-   }
-
-   ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
-
-   return TRUE;
-}
-
-//
-//  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
-//
-//  PURPOSE:  Processes messages for the main window.
-//
-//  WM_COMMAND  - process the application menu
-//  WM_PAINT    - Paint the main window
-//  WM_DESTROY  - post a quit message and return
-//
-//
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    switch (message)
-    {
-    case WM_COMMAND:
+        TEXTMETRIC metrics;
         {
-            int wmId = LOWORD(wParam);
-            // Parse the menu selections:
-            switch (wmId)
+            BOOL success = GetTextMetrics(context, &metrics);
+            if (!success)
             {
-            case IDM_ABOUT:
-                DialogBox(MainInstance, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-                break;
-            case IDM_EXIT:
-                DestroyWindow(hWnd);
-                break;
-            default:
-                return DefWindowProc(hWnd, message, wParam, lParam);
+                _logFile << "Could not get metrics for font height." << std::endl;
+
+                ReleaseDC(_editWindow, context);
+                goto error_cleanup_logFile;
             }
         }
-        break;
-    case WM_PAINT:
-        {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-            // TODO: Add any drawing code that uses hdc here...
-            EndPaint(hWnd, &ps);
-        }
-        break;
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
-    default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
+
+        _font_height = metrics.tmHeight;
+
+
+        
+        RECT clientRect;
+        GetClientRect(_mainWindow, &clientRect);
+        _editWindow_UpdateSize(clientRect.right);
     }
-    return 0;
+
+
+
+
+    HACCEL accelTable = LoadAccelerators(_mainInstance, MAKEINTRESOURCE(IDC_CAO));
+
+
+
+    MSG message;
+    while (GetMessage(&message, NULL, 0, 0))
+    {
+        if (!TranslateAccelerator(message.hwnd, accelTable, &message))
+        {
+            TranslateMessage(&message);
+            DispatchMessage(&message);
+        }
+    }
+
+
+
+    return (int) message.wParam;
+
+
+
+error_cleanup_logFile:
+    _logFile.close();
+
+
+
+    return EXIT_FAILURE;
 }
 
-// Message handler for about box.
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+
+
+LRESULT CALLBACK
+WndProc(
+    HWND window,
+    UINT message,
+    WPARAM wParam,
+    LPARAM lParam)
 {
-    UNREFERENCED_PARAMETER(lParam);
     switch (message)
     {
-    case WM_INITDIALOG:
-        return (INT_PTR)TRUE;
-
-    case WM_COMMAND:
-        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        case WM_CREATE:
         {
-            EndDialog(hDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
+            break;
         }
-        break;
+
+        case WM_COMMAND:
+        {
+            break;
+        }
+
+        case WM_PAINT:
+        {
+            PAINTSTRUCT paint;
+            HDC context = BeginPaint(window, &paint);
+            EndPaint(window, &paint);
+            break;
+        }
+
+        case WM_DESTROY:
+        {
+            PostQuitMessage(0);
+            break;
+        }
+
+        case WM_SIZE:
+        {
+            
+            int width = LOWORD(lParam);
+            _editWindow_UpdateSize(width);
+
+            break;
+        }
     }
-    return (INT_PTR)FALSE;
+
+    return DefWindowProc(window, message, wParam, lParam);
+}
+
+
+
+void
+_editWindow_UpdateSize(int width)
+{
+    BOOL success =
+        MoveWindow(
+            _editWindow,
+            0, 0,
+            width, _font_height + _font_PADDING,
+            true);
 }
