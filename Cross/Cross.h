@@ -1,22 +1,20 @@
-namespace cao
-{
-    const char Config_CONTROL = 1 << 0;
-    const char Config_ALT     = 1 << 1;
-    const char Config_SHIFT   = 1 << 2;
+#include <string>
 
-    const char Config_STANDARD = 1 << 0;
-    const char Config_TEMPFILE = 1 << 1;
-    const char Config_ARGS     = 1 << 2;
+#define Log(message) {                  \
+    __Log(message, __FILE__, __LINE__); \
+}                                       \
 
-    #ifdef Cao_Windows
-    const char *test = "Cao on Windows!";
-    #endif
+const char Config_CONTROL = 1 << 0;
+const char Config_ALT     = 1 << 1;
+const char Config_SHIFT   = 1 << 2;
 
-    #ifdef Cao_Linux
-    const char *test = "Cao on Linux!";
-    #endif
+const char Config_STANDARD = 1 << 0;
+const char Config_TEMPFILE = 1 << 1;
+const char Config_ARGS     = 1 << 2;
 
-    void
-    blah();
-}
+void
+__Log(std::string message, std::string file, int line);
+
+void
+CloseLog();
 

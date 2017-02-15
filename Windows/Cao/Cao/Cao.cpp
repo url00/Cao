@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "Cao.h"
+#include "..\..\..\Cross\Cross.h"
 
 #define MAX_LOADSTRING 100
 
@@ -23,10 +24,6 @@ static HWND _editWindow;
 
 static int _font_height = 0;
 static const int _font_PADDING = 6;
-
-
-
-static std::ofstream _logFile("log.txt");
 
 
 
@@ -112,7 +109,7 @@ wWinMain(
         HDC context = GetDC(_editWindow);
         if (context == NULL)
         {
-            _logFile << "Could not get DC for font height." << std::endl;
+            Log("Could not get DC for font height.");
 
             ReleaseDC(_editWindow, context);
             goto error_cleanup_logFile;
@@ -124,7 +121,7 @@ wWinMain(
             BOOL success = GetTextMetrics(context, &metrics);
             if (!success)
             {
-                _logFile << "Could not get metrics for font height." << std::endl;
+                Log("Could not get metrics for font height.");
 
                 ReleaseDC(_editWindow, context);
                 goto error_cleanup_logFile;
@@ -158,13 +155,14 @@ wWinMain(
     }
 
 
+    CloseLog();
 
     return (int) message.wParam;
 
 
 
 error_cleanup_logFile:
-    _logFile.close();
+    CloseLog();
 
 
 
