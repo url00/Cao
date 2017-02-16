@@ -6,3 +6,12 @@
 1487133468 /home/nathan/Desktop/Cao/Cross/Cross.h
 	<string>
 
+1487198222 source:/home/nathan/Desktop/Cao/Linux/Cao/Cao.cpp
+	"Cao.h"
+	<X11/Intrinsic.h>
+	<X11/StringDefs.h>
+	<X11/Xaw/Label.h>
+	"Cross.h"
+
+1487197822 /home/nathan/Desktop/Cao/Linux/Cao/Cao.h
+
