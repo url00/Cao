@@ -1,7 +1,13 @@
 #include "Cao.h"
 
+#include <iostream>
 #include <cstdlib>
+
 #include <gtk/gtk.h>
+
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+
 #include "Cross.h"
 
 static GApplication *app;
@@ -39,8 +45,59 @@ main (
 
 
 
+
     int status;
     status = g_application_run(app, argc, argv);
+
+
+
+
+    {
+        Display* dpy = XOpenDisplay(0);
+        Window root = DefaultRootWindow(dpy);
+        XEvent ev;
+
+        unsigned int modifiers = ControlMask | ShiftMask;
+        int keycode = XKeysymToKeycode(dpy,XK_Y);
+        Window grab_window = root;
+        Bool owner_events = False;
+        int pointer_mode = GrabModeAsync;
+        int keyboard_mode = GrabModeAsync;
+
+        XGrabKey(
+            dpy,
+            keycode,
+            modifiers,
+            grab_window,
+            owner_events,
+            pointer_mode,
+            keyboard_mode);
+
+        XSelectInput(dpy, root, KeyPressMask);
+        while(true)
+        {
+            bool shouldQuit = false;
+            XNextEvent(dpy, &ev);
+            switch(ev.type)
+            {
+                case KeyPress:
+                    std::cout << "Hot key pressed!" << std::endl;
+                    XUngrabKey(dpy,keycode,modifiers,grab_window);
+                    shouldQuit = true;
+
+                default:
+                    break;
+            }
+
+            if(shouldQuit)
+                break;
+        }
+
+        XCloseDisplay(dpy);
+    }
+
+
+
 
     g_object_unref (app);
     return status;
