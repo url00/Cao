@@ -1,0 +1,7 @@
+﻿cas,t,s,longest word~awk '$1 > max {max=$1; maxline=$0}; END{ print max, maxline}'
+# This is a comment.
+cas,w,t,~type
+cas,q,s,~cat
+cas,`,sta,echoer~Debug\Echoer.exe # Test program for stuff
+cas,i,s,line nums~awk '{print FNR "\t" $0}'
+cas,z,s,word count~awk '{ total = total + NF }; END {print total}'

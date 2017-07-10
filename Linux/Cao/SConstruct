@@ -1,0 +1,14 @@
+standard_lib_directories = ['/usr/lib', '/usr/local/lib']
+
+
+
+env = Environment()
+env.ParseConfig('pkg-config --cflags --libs gtk+-3.0')
+env.ParseConfig('pkg-config --cflags --libs x11')
+env.Append(CPPDEFINES = ['Cao_Linux'])
+
+
+
+Default(env.Program(
+    target  = 'Cao.elf',
+    source  = ['../../Cross/Cross.cpp', 'Cao.cpp']))
