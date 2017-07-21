@@ -2,230 +2,175 @@
 #include "Cao.h"
 #include "..\..\..\Cross\Cross.h"
 
-#define MAX_LOADSTRING 100
+
+
+static const LPCSTR mainWindow_className = "Sample Window Class";
+static const auto transparentRGB = RGB(255, 0, 255);
+
+
+static int screenWidth;
+static int screenHeight;
 
 
 
-static HINSTANCE _mainInstance;
-static WCHAR _title[MAX_LOADSTRING];
-static WCHAR _mainClass[MAX_LOADSTRING];
-
-
-
-static HWND _mainWindow;
-static const int _mainWindow_HEIGHT = 100;
-static const int _mainWindow_WIDTH  = 400;
-
-
-
-static HWND _editWindow;
-
-
-
-static int _font_height = 0;
-static const int _font_PADDING = 6;
-
-
-
-int APIENTRY
-wWinMain(
-    HINSTANCE instance,
-    HINSTANCE prevInstance,
-    LPWSTR    cmdLine,
-    int       cmdShow
-)
+int WINAPI wWinMain(HINSTANCE mainWindow_instance, HINSTANCE, PWSTR cmdLine, int cmdShow)
 {
-    UNREFERENCED_PARAMETER(prevInstance);
-    UNREFERENCED_PARAMETER(cmdLine);
-    
-    _mainInstance = instance;
+    screenWidth = GetSystemMetrics(SM_CXSCREEN);
+    screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
 
 
-    LoadStringW(_mainInstance, IDS_APP_TITLE, _title,     MAX_LOADSTRING);
-    LoadStringW(_mainInstance, IDC_CAO,       _mainClass, MAX_LOADSTRING);
+    WNDCLASS mainWindow_class = { };
+    mainWindow_class.lpfnWndProc   = mainWindow_proc;
+    mainWindow_class.hInstance     = mainWindow_instance;
+    mainWindow_class.lpszClassName = mainWindow_className;
+    RegisterClass(&mainWindow_class);
 
 
 
-    {
-        WNDCLASSEXW params;
-        params.cbSize        = sizeof(WNDCLASSEX);
-        params.style         = CS_HREDRAW | CS_VREDRAW;
-        params.lpfnWndProc   = WndProc;
-        params.cbClsExtra    = 0;
-        params.cbWndExtra    = 0;
-        params.hInstance     = _mainInstance;
-        params.hIcon         = LoadIcon(_mainInstance, MAKEINTRESOURCE(IDI_CAO));
-        params.hCursor       = LoadCursor(NULL, IDC_ARROW);
-        params.hbrBackground = (HBRUSH)(COLOR_WINDOW+1);
-        params.lpszMenuName  = MAKEINTRESOURCEW(IDC_CAO);
-        params.lpszClassName = _mainClass;
-        params.hIconSm       = LoadIcon(params.hInstance, MAKEINTRESOURCE(IDI_SMALL));
-
-        ATOM result = RegisterClassExW(&params);
-        if (result == 0)
-        {
-            goto error_cleanup_logFile;
-        }
-    }
-
-
-       
-    _mainWindow =
-        CreateWindowW(
-            _mainClass,
-            _title,
+    HWND mainWindow =
+        CreateWindowEx(
+            WS_EX_TOPMOST | WS_EX_LAYERED,
+            mainWindow_className,
+            "Main Window",
             WS_OVERLAPPEDWINDOW,
-            CW_USEDEFAULT, CW_USEDEFAULT,
-            _mainWindow_WIDTH, _mainWindow_HEIGHT,
+            0,
+            0,
+            screenWidth,
+            screenHeight,
             NULL,
             NULL,
-            _mainInstance,
-            NULL);
-    if (!_mainWindow)
+            mainWindow_instance,
+            NULL
+        );
+    if (mainWindow == NULL)
     {
-        goto error_cleanup_logFile;
+        return 0;
     }
 
-    ShowWindow(_mainWindow, cmdShow);
-    UpdateWindow(_mainWindow);
 
 
+    // Remove all bars and borders.
+    LONG lStyle = GetWindowLong(mainWindow, GWL_STYLE);
+    lStyle &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU);
+    SetWindowLong(mainWindow, GWL_STYLE, lStyle);
+
+    LONG lExStyle = GetWindowLong(mainWindow, GWL_EXSTYLE);
+    lExStyle &= ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
+    SetWindowLong(mainWindow, GWL_EXSTYLE, lExStyle);
+
+    SetWindowPos(mainWindow, NULL, 0,0,0,0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+
+
+
+    // Enable window transparency.
+    {
+        bool didCallFail =
+            !SetLayeredWindowAttributes(
+                mainWindow,
+                transparentRGB,
+                0,
+                LWA_COLORKEY);
+        if (didCallFail)
+        {
+            // Error. #log #err #todo
+        }
+    }
+
+
+
+    ShowWindow(mainWindow, cmdShow);
     
-    _editWindow =
-        CreateWindowExW(
-            WS_EX_CLIENTEDGE,
-            L"EDIT",
-            _title,
-            WS_VISIBLE | WS_CHILD | WS_BORDER | ES_LEFT,
-            0, 0,
-            _mainWindow_WIDTH, _mainWindow_HEIGHT,
-            _mainWindow,
-            NULL,
-            _mainInstance,
-            NULL);    
 
+
+    MSG msg = { };
+    while (GetMessage(&msg, NULL, 0, 0))
     {
-        HDC context = GetDC(_editWindow);
-        if (context == NULL)
-        {
-            Log("Could not get DC for font height.");
-
-            ReleaseDC(_editWindow, context);
-            goto error_cleanup_logFile;
-        }
-
-
-        TEXTMETRIC metrics;
-        {
-            BOOL success = GetTextMetrics(context, &metrics);
-            if (!success)
-            {
-                Log("Could not get metrics for font height.");
-
-                ReleaseDC(_editWindow, context);
-                goto error_cleanup_logFile;
-            }
-        }
-
-        _font_height = metrics.tmHeight;
-
-
-        
-        RECT clientRect;
-        GetClientRect(_mainWindow, &clientRect);
-        _editWindow_UpdateSize(clientRect.right);
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
     }
 
 
 
-
-    HACCEL accelTable = LoadAccelerators(_mainInstance, MAKEINTRESOURCE(IDC_CAO));
-
-
-
-    MSG message;
-    while (GetMessage(&message, NULL, 0, 0))
-    {
-        if (!TranslateAccelerator(message.hwnd, accelTable, &message))
-        {
-            TranslateMessage(&message);
-            DispatchMessage(&message);
-        }
-    }
-
-
-    CloseLog();
-
-    return (int) message.wParam;
-
-
-
-error_cleanup_logFile:
-    CloseLog();
-
-
-
-    return EXIT_FAILURE;
+    return 0;
 }
 
 
 
-LRESULT CALLBACK
-WndProc(
-    HWND window,
-    UINT message,
-    WPARAM wParam,
-    LPARAM lParam)
-{
-    switch (message)
-    {
-        case WM_CREATE:
-        {
-            break;
-        }
+void DrawRect(int x, int y, int width, int height, HDC deviceContext, HBRUSH brush)
+{    
+    RECT testRect;
+    testRect.left   = x;
+    testRect.top    = y;
+    testRect.right  = x + width;
+    testRect.bottom = y + height;
+    FillRect(deviceContext, &testRect, brush);
+}
 
-        case WM_COMMAND:
+
+
+LRESULT CALLBACK mainWindow_proc(HWND proc_window, UINT proc_message, WPARAM proc_wprarm, LPARAM proc_lparam)
+{
+    switch (proc_message)
+    {
+        case WM_DESTROY:
         {
-            break;
+            PostQuitMessage(0);
+            return 0;
         }
 
         case WM_PAINT:
         {
-            PAINTSTRUCT paint;
-            HDC context = BeginPaint(window, &paint);
-            EndPaint(window, &paint);
-            break;
-        }
-
-        case WM_DESTROY:
-        {
-            PostQuitMessage(0);
-            break;
-        }
-
-        case WM_SIZE:
-        {
+            PAINTSTRUCT ps;
+            HDC deviceContext = BeginPaint(proc_window, &ps);
             
-            int width = LOWORD(lParam);
-            _editWindow_UpdateSize(width);
+            SelectObject(deviceContext, GetStockObject(GRAY_BRUSH)); 
 
-            break;
+
+
+            HBRUSH transparentBrush = CreateSolidBrush(transparentRGB);
+            if (transparentBrush == NULL)
+            {
+                // Error. #todo #log #err
+                goto ps_clean;
+            }
+
+            FillRect(deviceContext, &ps.rcPaint, transparentBrush);
+            DeleteObject(transparentBrush);
+
+
+
+            TCHAR szMessage[] = "Paint Beginner";
+            UINT nLen = _tcslen(szMessage);
+            TextOut(deviceContext, 100, 325, szMessage, nLen); 
+
+
+
+            HBRUSH yellowBrush = CreateSolidBrush(RGB(255, 255, 0));
+            if (yellowBrush == NULL)
+            {
+                goto ps_clean;
+            }
+            const int rectSize = 100;
+            DrawRect(0, 0, rectSize, rectSize, deviceContext, yellowBrush);
+            DrawRect(screenWidth - rectSize, 0, 100, 100, deviceContext, yellowBrush);
+            DrawRect(screenWidth - rectSize, screenHeight - rectSize, 100, 100, deviceContext, yellowBrush);
+            DrawRect(0, screenHeight - rectSize, rectSize, rectSize, deviceContext, yellowBrush);
+            DeleteObject(yellowBrush);
+
+
+
+
+            Ellipse(deviceContext, 100, 100, 200, 300);
+                
+            ps_clean:
+            EndPaint(proc_window, &ps);
+
+            hdc_clean:
+            ReleaseDC(proc_window, deviceContext);
+            return 0;
         }
     }
 
-    return DefWindowProc(window, message, wParam, lParam);
-}
-
-
-
-void
-_editWindow_UpdateSize(int width)
-{
-    BOOL success =
-        MoveWindow(
-            _editWindow,
-            0, 0,
-            width, _font_height + _font_PADDING,
-            true);
+    return DefWindowProc(proc_window, proc_message, proc_wprarm, proc_lparam);
 }

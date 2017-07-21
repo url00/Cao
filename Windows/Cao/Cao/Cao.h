@@ -1,13 +1,8 @@
 #pragma once
-
 #include "resource.h"
 
-LRESULT CALLBACK
-WndProc(
-    HWND,
-    UINT,
-    WPARAM,
-    LPARAM);
 
-void
-_editWindow_UpdateSize(int);
+
+int WINAPI wWinMain(HINSTANCE mainInstance, HINSTANCE, PWSTR cmdLine, int cmdShow);
+
+LRESULT CALLBACK mainWindow_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
