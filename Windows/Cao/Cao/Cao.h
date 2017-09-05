@@ -3,6 +3,23 @@
 
 
 
-int WINAPI wWinMain(HINSTANCE mainInstance, HINSTANCE, PWSTR cmdLine, int cmdShow);
+namespace MainWindow
+{
+    typedef struct
+    {
+        LPCSTR windowTitle;
+        HINSTANCE instance;
+        LPCSTR windowClassName;
+        WNDCLASS windowClass;
+        HWND window;
+        COLORREF transparentColor;
+        int screenWidth;
+        int screenHeight;
+    } State;
+}
 
-LRESULT CALLBACK mainWindow_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+
+void DrawRect(int x, int y, int width, int height, HDC deviceContext, HBRUSH brush);
+
+int WINAPI wWinMain(HINSTANCE mainInstance, HINSTANCE, PWSTR cmdLine, int cmdShow);

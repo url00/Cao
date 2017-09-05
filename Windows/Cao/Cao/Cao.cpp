@@ -4,95 +4,124 @@
 
 
 
-static const LPCSTR mainWindow_className = "Sample Window Class";
-static const auto transparentRGB = RGB(255, 0, 255);
-
-
-static int screenWidth;
-static int screenHeight;
-
-
-
-int WINAPI wWinMain(HINSTANCE mainWindow_instance, HINSTANCE, PWSTR cmdLine, int cmdShow)
+namespace MainWindow
 {
-    screenWidth = GetSystemMetrics(SM_CXSCREEN);
-    screenHeight = GetSystemMetrics(SM_CYSCREEN);
+    static State state;
 
-
-
-    WNDCLASS mainWindow_class = { };
-    mainWindow_class.lpfnWndProc   = mainWindow_proc;
-    mainWindow_class.hInstance     = mainWindow_instance;
-    mainWindow_class.lpszClassName = mainWindow_className;
-    RegisterClass(&mainWindow_class);
-
-
-
-    HWND mainWindow =
-        CreateWindowEx(
-            WS_EX_TOPMOST | WS_EX_LAYERED,
-            mainWindow_className,
-            "Main Window",
-            WS_OVERLAPPEDWINDOW,
-            0,
-            0,
-            screenWidth,
-            screenHeight,
-            NULL,
-            NULL,
-            mainWindow_instance,
-            NULL
-        );
-    if (mainWindow == NULL)
+    bool Init(HINSTANCE instance, WNDPROC messageCallbackHandler, const int screenWidth, const int screenHeight)
     {
-        return 0;
-    }
+        state = { };
+        state.transparentColor = RGB(255, 0, 255);
+        state.screenWidth = screenWidth;
+        state.screenHeight = screenHeight;
 
 
 
-    // Remove all bars and borders.
-    LONG lStyle = GetWindowLong(mainWindow, GWL_STYLE);
-    lStyle &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU);
-    SetWindowLong(mainWindow, GWL_STYLE, lStyle);
+        state.windowTitle = "Cao Drawing Surface";
+        state.instance = instance;
+        state.windowClass.lpfnWndProc = messageCallbackHandler;
+        state.windowClass.hInstance = instance;
+        state.windowClassName = "Cao Drawing Surface";
+        state.windowClass.lpszClassName = state.windowClassName;
+        RegisterClass(&state.windowClass);
 
-    LONG lExStyle = GetWindowLong(mainWindow, GWL_EXSTYLE);
-    lExStyle &= ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
-    SetWindowLong(mainWindow, GWL_EXSTYLE, lExStyle);
-
-    SetWindowPos(mainWindow, NULL, 0,0,0,0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER);
-
-
-
-    // Enable window transparency.
-    {
-        bool didCallFail =
-            !SetLayeredWindowAttributes(
-                mainWindow,
-                transparentRGB,
-                0,
-                LWA_COLORKEY);
-        if (didCallFail)
+        state.window = CreateWindowEx(WS_EX_TOPMOST | WS_EX_LAYERED, state.windowClassName, state.windowTitle, WS_OVERLAPPEDWINDOW, 0, 0, screenWidth, screenHeight, NULL, NULL, state.instance, NULL);
+        if (state.window == NULL)
         {
-            // Error. #log #err #todo
+            return false;
+        }
+
+
+
+        // Remove all bars and borders.
+        {
+            LONG lStyle = GetWindowLong(state.window, GWL_STYLE);
+            lStyle &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU);
+            SetWindowLong(state.window, GWL_STYLE, lStyle);
+        }
+
+        {
+            LONG lExStyle = GetWindowLong(state.window, GWL_EXSTYLE);
+            lExStyle &= ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
+            SetWindowLong(state.window, GWL_EXSTYLE, lExStyle);
+        }
+
+        // Ensure the window is moved to the top left.
+        SetWindowPos(state.window, NULL, 0,0,0,0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+
+        // Enable window transparency.
+        if (!SetLayeredWindowAttributes(state.window, state.transparentColor, 0, LWA_COLORKEY))
+        {
+            return false;
         }
     }
 
 
-
-    ShowWindow(mainWindow, cmdShow);
-    
-
-
-    MSG msg = { };
-    while (GetMessage(&msg, NULL, 0, 0))
+        
+    LRESULT CALLBACK MessageHandler(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
     {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+        switch (message)
+        {
+            case WM_DESTROY:
+            {
+                PostQuitMessage(0);
+                return 0;
+            }
+
+            case WM_PAINT:
+            {
+                PAINTSTRUCT ps;
+                HDC deviceContext = BeginPaint(state.window, &ps);
+            
+                SelectObject(deviceContext, GetStockObject(GRAY_BRUSH)); 
+
+
+
+                HBRUSH transparentBrush = CreateSolidBrush(state.transparentColor);
+                if (transparentBrush == NULL)
+                {
+                    goto transparentBrush_clean;
+                }
+
+                FillRect(deviceContext, &ps.rcPaint, transparentBrush);
+                DeleteObject(transparentBrush);
+
+
+
+                TCHAR szMessage[] = "Paint Beginner";
+                UINT nLen = _tcslen(szMessage);
+                TextOut(deviceContext, 100, 325, szMessage, nLen); 
+
+
+
+                HBRUSH yellowBrush = CreateSolidBrush(RGB(255, 255, 0));
+                if (yellowBrush == NULL)
+                {
+                    goto yellowBrush_clean;
+                }
+                const int rectSize = 100;
+                DrawRect(0, 0, rectSize, rectSize, deviceContext, yellowBrush);
+                DrawRect(state.screenWidth - rectSize, 0, 100, 100, deviceContext, yellowBrush);
+                DrawRect(state.screenWidth - rectSize, state.screenHeight - rectSize, 100, 100, deviceContext, yellowBrush);
+                DrawRect(0, state.screenHeight - rectSize, rectSize, rectSize, deviceContext, yellowBrush);
+                DeleteObject(yellowBrush);
+
+                Ellipse(deviceContext, 100, 100, 200, 300);
+
+
+                
+                yellowBrush_clean:
+                transparentBrush_clean:
+                EndPaint(state.window, &ps);
+
+                deviceContext_clean:
+                ReleaseDC(state.window, deviceContext);
+                return 0;
+            }
+        }
+
+        return DefWindowProc(window, message, wparam, lparam);
     }
-
-
-
-    return 0;
 }
 
 
@@ -109,68 +138,35 @@ void DrawRect(int x, int y, int width, int height, HDC deviceContext, HBRUSH bru
 
 
 
-LRESULT CALLBACK mainWindow_proc(HWND proc_window, UINT proc_message, WPARAM proc_wprarm, LPARAM proc_lparam)
+int WINAPI wWinMain(HINSTANCE mainWindowInstance, HINSTANCE, PWSTR commandLine, int commandShow)
 {
-    switch (proc_message)
+    
     {
-        case WM_DESTROY:
+        const auto screenWidth = GetSystemMetrics(SM_CXSCREEN);
+        const auto screenHeight = GetSystemMetrics(SM_CYSCREEN);
+        if (!MainWindow::Init(mainWindowInstance, MainWindow::MessageHandler, screenWidth, screenHeight))
         {
-            PostQuitMessage(0);
-            return 0;
-        }
-
-        case WM_PAINT:
-        {
-            PAINTSTRUCT ps;
-            HDC deviceContext = BeginPaint(proc_window, &ps);
-            
-            SelectObject(deviceContext, GetStockObject(GRAY_BRUSH)); 
-
-
-
-            HBRUSH transparentBrush = CreateSolidBrush(transparentRGB);
-            if (transparentBrush == NULL)
-            {
-                // Error. #todo #log #err
-                goto ps_clean;
-            }
-
-            FillRect(deviceContext, &ps.rcPaint, transparentBrush);
-            DeleteObject(transparentBrush);
-
-
-
-            TCHAR szMessage[] = "Paint Beginner";
-            UINT nLen = _tcslen(szMessage);
-            TextOut(deviceContext, 100, 325, szMessage, nLen); 
-
-
-
-            HBRUSH yellowBrush = CreateSolidBrush(RGB(255, 255, 0));
-            if (yellowBrush == NULL)
-            {
-                goto ps_clean;
-            }
-            const int rectSize = 100;
-            DrawRect(0, 0, rectSize, rectSize, deviceContext, yellowBrush);
-            DrawRect(screenWidth - rectSize, 0, 100, 100, deviceContext, yellowBrush);
-            DrawRect(screenWidth - rectSize, screenHeight - rectSize, 100, 100, deviceContext, yellowBrush);
-            DrawRect(0, screenHeight - rectSize, rectSize, rectSize, deviceContext, yellowBrush);
-            DeleteObject(yellowBrush);
-
-
-
-
-            Ellipse(deviceContext, 100, 100, 200, 300);
-                
-            ps_clean:
-            EndPaint(proc_window, &ps);
-
-            hdc_clean:
-            ReleaseDC(proc_window, deviceContext);
-            return 0;
+            return 1;
         }
     }
 
-    return DefWindowProc(proc_window, proc_message, proc_wprarm, proc_lparam);
+    ShowWindow(MainWindow::state.window, commandShow);
+
+
+
+    MSG message = { };
+    while (GetMessage(&message, NULL, 0, 0))
+    {
+        TranslateMessage(&message);
+        DispatchMessage(&message);
+    }
+
+
+
+    return 0;
 }
+
+
+
+
+
