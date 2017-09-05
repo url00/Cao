@@ -31,6 +31,13 @@ namespace MainWindow
             return false;
         }
 
+        // Make the window click-throughable.
+        {
+            auto exStyle = GetWindowLong(state.window, GWL_EXSTYLE);
+            exStyle |= WS_EX_TRANSPARENT;
+            SetWindowLong(state.window, GWL_EXSTYLE, exStyle);
+        }
+
 
 
         // Remove all bars and borders.
