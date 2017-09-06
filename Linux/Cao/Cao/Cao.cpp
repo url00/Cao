@@ -1,51 +1,77 @@
-#include "Cao.h"
-
-#include <iostream>
-#include <cstdlib>
-
-#include <gtk/gtk.h>
+#include <time.h>
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/extensions/Xcomposite.h>
+#include <X11/extensions/Xfixes.h>
+#include <X11/extensions/shape.h>
+
+#include <cairo.h>
+#include <cairo-xlib.h>
 
 #include "../../../Cross/Cross.h"
-
-static GApplication *app;
-static GtkApplication *app_gtk;
-
-static void activate (GtkApplication* __app, gpointer user_data)
-{
-    GtkWidget *window_widget;
-    window_widget = gtk_application_window_new(app_gtk);
-    GtkWindow *window = (GtkWindow*)window_widget;
-    gtk_window_set_title(window, "Cao");
-    gtk_window_set_default_size(window, 500, 50);
-    gtk_widget_show_all(window_widget);
+#include "Cao.h"
 
 
 
-    GNotification *notification;
-    notification = g_notification_new ("Lunch is ready");
-    g_notification_set_body (notification, "Today we have pancakes and salad, and fruit and cake for dessert");
-    g_application_send_notification(app, "test", notification);
+void Draw(cairo_t *cr, int width, int height) {
+    int quarter_w = width / 4;
+    int quarter_h = height / 4;
+    cairo_set_source_rgb(cr, 1.0, 0.0, 0.0);
+    cairo_rectangle(cr, quarter_w, quarter_h, quarter_w * 2, quarter_h * 2);
+    cairo_fill(cr);
 }
 
-int main (int argc, char **argv)
+int main(int argc, char **argv)
 {
-    app_gtk = gtk_application_new("org.gtk.example", G_APPLICATION_FLAGS_NONE);
-    app = (GApplication*)app_gtk;
+    struct timespec ts = {0, 5000000};
 
-    g_signal_connect(app_gtk, "activate", G_CALLBACK(activate), NULL);
+    Display *display = XOpenDisplay(NULL);
+    int screen = DefaultScreen(display);
+    Window root = RootWindow(display, screen);
+
+    XCompositeRedirectSubwindows(display, root, CompositeRedirectAutomatic);
+    XSelectInput(display, root, SubstructureNotifyMask);
+
+    int width = DisplayWidth(display, screen);
+    int height = DisplayHeight(display, screen);
 
 
 
+    Window overlay = XCompositeGetOverlayWindow(display, root);
+    // Allow input pass-through for this overlay window.
+    XserverRegion region = XFixesCreateRegion(display, NULL, 0);
 
-    int status;
-    status = g_application_run(app, argc, argv);
+    XFixesSetWindowShapeRegion(display, overlay, ShapeBounding, 0, 0, 0);
+    XFixesSetWindowShapeRegion(display, overlay, ShapeInput, 0, 0, region);
+
+    XFixesDestroyRegion(display, region);
 
 
 
+    cairo_surface_t *surf = cairo_xlib_surface_create(display, overlay, DefaultVisual(display, screen), width, height);
+    cairo_t *cr = cairo_create(surf);
 
+    XSelectInput(display, overlay, ExposureMask);
+
+    Draw(cr, width, height);
+
+    XEvent ev;
+    while(1) {
+      overlay = XCompositeGetOverlayWindow(display, root);
+      Draw(cr, width, height);
+      XCompositeReleaseOverlayWindow(display, root);
+      nanosleep(&ts, NULL);
+    }
+
+    cairo_destroy(cr);
+    cairo_surface_destroy(surf);
+    XCloseDisplay(display);
+    return 0; 
+
+
+    // Global hotkeys.
+    /*
     {
         Display* dpy = XOpenDisplay(0);
         Window root = DefaultRootWindow(dpy);
@@ -89,12 +115,11 @@ int main (int argc, char **argv)
 
         XCloseDisplay(dpy);
     }
+    */
 
 
 
-
-    g_object_unref (app);
-    return status;
+    return 0;
 }
 
 

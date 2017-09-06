@@ -3,8 +3,9 @@ standard_lib_directories = ['/usr/lib', '/usr/local/lib']
 
 
 env = Environment()
-env.ParseConfig('pkg-config --cflags --libs gtk+-3.0')
 env.ParseConfig('pkg-config --cflags --libs x11')
+env.ParseConfig('pkg-config --cflags --libs xfixes')
+env.ParseConfig('pkg-config --cflags --libs xcomposite')
 env.Append(CPPDEFINES = ['Linux'])
 
 
