@@ -8,15 +8,12 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
-#include "../../Cross/Cross.h"
+#include "../../../Cross/Cross.h"
 
 static GApplication *app;
 static GtkApplication *app_gtk;
 
-static void
-activate (
-    GtkApplication* __app,
-    gpointer        user_data)
+static void activate (GtkApplication* __app, gpointer user_data)
 {
     GtkWidget *window_widget;
     window_widget = gtk_application_window_new(app_gtk);
@@ -33,10 +30,7 @@ activate (
     g_application_send_notification(app, "test", notification);
 }
 
-int
-main (
-    int    argc,
-    char **argv)
+int main (int argc, char **argv)
 {
     app_gtk = gtk_application_new("org.gtk.example", G_APPLICATION_FLAGS_NONE);
     app = (GApplication*)app_gtk;
@@ -101,4 +95,10 @@ main (
 
     g_object_unref (app);
     return status;
+}
+
+
+
+void MainWindow_DrawTestRect(int x, int y, int height, int width)
+{
 }
